@@ -1,0 +1,40 @@
+{
+  "swaggerUi": "/docs",
+  "swaggerJson": "/docs/swagger.json",
+  "endpoints": [
+    { "method": "POST", "path": "/api/auth/sign-up", "tag": "auth" },
+    { "method": "POST", "path": "/api/auth/sign-in", "tag": "auth" },
+    { "method": "POST", "path": "/api/auth/guest-session", "tag": "auth" },
+    { "method": "GET", "path": "/api/auth/profile/:id", "tag": "auth" },
+
+    { "method": "POST", "path": "/api/discovery/onboarding", "tag": "discovery" },
+    { "method": "GET", "path": "/api/discovery/onboarding/:id", "tag": "discovery" },
+    { "method": "POST", "path": "/api/discovery/chat/sessions", "tag": "discovery" },
+    { "method": "POST", "path": "/api/discovery/chat/sessions/:id/messages", "tag": "discovery" },
+    { "method": "POST", "path": "/api/discovery/prompts", "tag": "discovery" },
+    { "method": "PATCH", "path": "/api/discovery/prompts/:id", "tag": "discovery" },
+    { "method": "POST", "path": "/api/discovery/prompts/:id/regenerate", "tag": "discovery" },
+    { "method": "DELETE", "path": "/api/discovery/prompts/:id", "tag": "discovery" },
+
+    { "method": "GET", "path": "/api/catalog/providers", "tag": "catalog" },
+    { "method": "GET", "path": "/api/catalog/models", "tag": "catalog" },
+    { "method": "GET", "path": "/api/catalog/models/:slug", "tag": "catalog" },
+    { "method": "GET", "path": "/api/catalog/models/:slug/guides", "tag": "catalog" },
+    { "method": "GET", "path": "/api/catalog/comparisons/flagship", "tag": "catalog" },
+    { "method": "POST", "path": "/api/catalog/comparisons", "tag": "catalog" },
+    { "method": "POST", "path": "/api/catalog/models/:slug/reviews", "tag": "catalog" },
+
+    { "method": "GET", "path": "/api/agents/templates", "tag": "agents" },
+    { "method": "POST", "path": "/api/agents", "tag": "agents" },
+    { "method": "GET", "path": "/api/agents/:id", "tag": "agents" },
+    { "method": "PATCH", "path": "/api/agents/:id", "tag": "agents" },
+
+    { "method": "GET", "path": "/api/analytics/overview", "tag": "analytics" },
+    { "method": "GET", "path": "/api/analytics/usage", "tag": "analytics" },
+
+    { "method": "GET", "path": "/api/content/research-feed", "tag": "content" },
+    { "method": "POST", "path": "/api/content/digest-subscriptions", "tag": "content" },
+    { "method": "GET", "path": "/api/content/languages", "tag": "content" },
+    { "method": "PUT", "path": "/api/content/localization/:userId", "tag": "content" }
+  ]
+}
