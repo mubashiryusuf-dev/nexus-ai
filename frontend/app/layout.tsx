@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Instrument_Sans, Syne } from "next/font/google";
 
+import { AuthProvider } from "@/components/auth/auth-provider";
+import { SiteLanguageProvider } from "@/components/i18n/site-language-provider";
 import { AppHeader } from "@/components/layout/app-header";
 
 import "./globals.css";
@@ -30,10 +32,14 @@ export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
       <body
         className={`${instrumentSans.variable} ${syne.variable} min-h-screen bg-sand font-sans text-ink antialiased`}
       >
-        <div className="min-h-screen">
-          <AppHeader />
-          {children}
-        </div>
+        <SiteLanguageProvider>
+          <AuthProvider>
+            <div className="min-h-screen">
+              <AppHeader />
+              {children}
+            </div>
+          </AuthProvider>
+        </SiteLanguageProvider>
       </body>
     </html>
   );

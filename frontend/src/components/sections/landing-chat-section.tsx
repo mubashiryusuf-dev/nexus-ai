@@ -2,6 +2,8 @@
 
 import { useId, useRef, useState } from "react";
 
+import { useSiteLanguage } from "@/components/i18n/site-language-provider";
+
 type SuggestionTab = "Recruiting" | "Create a prototype" | "Build a business" | "Help me learn" | "Research";
 type AttachmentKind = "image" | "file" | "video";
 
@@ -228,6 +230,7 @@ function iconWrapper(icon: string): JSX.Element {
 }
 
 export function LandingChatSection(): JSX.Element {
+  const { translateText: t } = useSiteLanguage();
   const [activeTab, setActiveTab] = useState<SuggestionTab>("Recruiting");
   const [prompt, setPrompt] = useState("");
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
@@ -364,7 +367,7 @@ export function LandingChatSection(): JSX.Element {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               {actionButtons.map((action) => {
-                const commonClasses = `inline-flex h-11 w-11 items-center justify-center rounded-2xl border text-xs font-medium shadow-[0_6px_14px_rgba(46,32,18,0.04)] ${action.tone}`;
+                const commonClasses = `inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-2xl border text-xs font-medium shadow-[0_6px_14px_rgba(46,32,18,0.04)] ${action.tone}`;
 
                 if (action.kind === "image") {
                   return (
@@ -532,7 +535,7 @@ export function LandingChatSection(): JSX.Element {
                 type="button"
               >
                 {iconWrapper(item.icon)}
-                <span className="text-base text-[#5a534b]">{item.label}</span>
+                <span className="text-base text-[#5a534b]">{t(item.label)}</span>
               </button>
             ))}
           </div>

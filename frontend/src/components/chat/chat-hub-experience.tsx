@@ -1,8 +1,12 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useAuth } from "@/components/auth/auth-provider";
+import { useSiteLanguage } from "@/components/i18n/site-language-provider";
+import { apiClient } from "@/lib/api-client";
+import type { AiModelItem, PromptDraft as ApiPromptDraft } from "@/types/api";
 import {
   BookIcon,
   ChartIcon,
@@ -33,7 +37,7 @@ interface AttachmentItem {
   name: string;
 }
 
-interface PromptDraft {
+interface PromptDraftView {
   id: string;
   title: string;
   body: string;
@@ -155,7 +159,7 @@ const actionButtons = [
   { kind: "screen", tone: "border-[#b0ead0] text-[#059669] bg-[#ecfdf5]" }
 ] as const;
 
-const starterDrafts: PromptDraft[] = [
+const starterDrafts: PromptDraftView[] = [
   {
     id: "draft-onboarding",
     title: "Beginner setup prompt",
@@ -218,10 +222,13 @@ function SideSection({
 
 export function ChatHubExperience(): JSX.Element {
   const router = useRouter();
+  const { token, user, sessionMode } = useAuth();
+  const { translateText: t } = useSiteLanguage();
   const imageInputId = useId();
   const fileInputId = useId();
   const videoInputId = useId();
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const [catalogModels, setCatalogModels] = useState<AiModelItem[]>([]);
   const [activeModel, setActiveModel] = useState(models[0].name);
   const [activeTab, setActiveTab] = useState<HubTab>("Use cases");
   const [searchQuery, setSearchQuery] = useState("");
@@ -232,24 +239,79 @@ export function ChatHubExperience(): JSX.Element {
   const [screenSharing, setScreenSharing] = useState(false);
   const [listening, setListening] = useState(false);
   const [selectedAction, setSelectedAction] = useState<string>("Guided discovery");
-  const [draftPrompts, setDraftPrompts] = useState<PromptDraft[]>(starterDrafts);
+  const [draftPrompts, setDraftPrompts] = useState<PromptDraftView[]>(starterDrafts);
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async (): Promise<void> => {
+      setCatalogLoading(true);
+      try {
+        const liveModels = await apiClient.getModels();
+        setCatalogModels(liveModels);
+        if (liveModels[0]) {
+          setActiveModel(liveModels[0].name);
+        }
+      } catch {
+        setStatus("Using fallback model list until backend catalog is available");
+      } finally {
+        setCatalogLoading(false);
+      }
+    };
+
+    void load();
+  }, []);
+
+  useEffect(() => {
+    const bootstrapChat = async (): Promise<void> => {
+      setSessionLoading(true);
+      try {
+        const session = await apiClient.createChatSession(
+          {
+            userRef: user?.id ?? "guest-user",
+            skillLevel: sessionMode === "authenticated" ? "returning-user" : "beginner"
+          },
+          token
+        );
+        setChatSessionId(session._id);
+      } catch {
+        setStatus("Chat session will be created when the backend is available");
+      } finally {
+        setSessionLoading(false);
+      }
+    };
+
+    if (!chatSessionId) {
+      void bootstrapChat();
+    }
+  }, [chatSessionId, sessionMode, token, user?.id]);
 
   const filteredModels = useMemo(() => {
+    const sourceModels =
+      catalogModels.length > 0
+        ? catalogModels.map((model) => ({
+            name: model.name,
+            provider: model.provider,
+            summary: model.bestFitUseCase,
+            icon: <RobotIcon className="h-4 w-4" />
+          }))
+        : models;
     const term = searchQuery.trim().toLowerCase();
     if (!term) {
-      return models;
+      return sourceModels;
     }
 
-    return models.filter((model) => {
+    return sourceModels.filter((model) => {
       return (
         model.name.toLowerCase().includes(term) ||
         model.provider.toLowerCase().includes(term) ||
         model.summary.toLowerCase().includes(term)
       );
     });
-  }, [searchQuery]);
+  }, [catalogModels, searchQuery]);
 
-  const activeModelData = models.find((model) => model.name === activeModel) ?? models[0];
+  const activeModelData = filteredModels.find((model) => model.name === activeModel) ?? filteredModels[0] ?? models[0];
   const activeSuggestions = suggestionMap[activeTab];
 
   const recommendationCards = [
@@ -343,29 +405,63 @@ export function ChatHubExperience(): JSX.Element {
     }
   };
 
-  const addDraftFromPrompt = (sourcePrompt: string): void => {
+  const mapPromptDraft = (draft: ApiPromptDraft): PromptDraftView => {
+    const statusMap: Record<ApiPromptDraft["status"], PromptDraftView["status"]> = {
+      draft: "Draft",
+      ready: "Ready",
+      queued: "Queued"
+    };
+
+    return {
+      id: draft._id,
+      title: draft.title,
+      body: draft.body,
+      status: statusMap[draft.status]
+    };
+  };
+
+  const addDraftFromPrompt = async (sourcePrompt: string): Promise<void> => {
     const trimmed = sourcePrompt.trim();
-    if (!trimmed) {
+    if (!trimmed || !chatSessionId) {
       return;
     }
 
-    const nextDraft: PromptDraft = {
-      id: `${Date.now()}`,
-      title: `${activeTab} prompt`,
-      body: trimmed,
-      status: "Queued"
-    };
+    try {
+      const nextDraft = await apiClient.createPromptDraft(
+        {
+          chatSessionId,
+          title: `${activeTab} prompt`,
+          body: trimmed
+        },
+        token
+      );
 
-    setDraftPrompts((current) => [nextDraft, ...current]);
+      setDraftPrompts((current) => [mapPromptDraft(nextDraft), ...current]);
+    } catch {
+      setStatus("Prompt draft could not be saved to the backend");
+    }
   };
 
-  const handleSend = (): void => {
+  const handleSend = async (): Promise<void> => {
     const finalPrompt = prompt.trim() || activeSuggestions[0] || "Help me get started";
     const attachmentSummary = attachments.length ? ` with ${attachments.length} attachment(s)` : "";
     const agentSummary = agentEnabled ? " using agent mode" : "";
 
     setStatus(`Prepared "${finalPrompt}" for ${activeModelData.name}${attachmentSummary}${agentSummary}`);
-    addDraftFromPrompt(finalPrompt);
+
+    if (chatSessionId) {
+      try {
+        await apiClient.appendChatMessage(
+          chatSessionId,
+          { role: "user", content: finalPrompt },
+          token
+        );
+      } catch {
+        setStatus("Message prepared locally; backend chat append is unavailable");
+      }
+    }
+
+    await addDraftFromPrompt(finalPrompt);
 
     if ("speechSynthesis" in window && finalPrompt) {
       const utterance = new SpeechSynthesisUtterance(`Let's go. ${finalPrompt}`);
@@ -374,7 +470,10 @@ export function ChatHubExperience(): JSX.Element {
     }
   };
 
-  const updateDraft = (id: string, updater: (draft: PromptDraft) => PromptDraft | null): void => {
+  const updateDraft = async (
+    id: string,
+    updater: (draft: PromptDraftView) => PromptDraftView | null
+  ): Promise<void> => {
     setDraftPrompts((current) =>
       current.flatMap((draft) => {
         if (draft.id !== id) {
@@ -385,6 +484,36 @@ export function ChatHubExperience(): JSX.Element {
         return nextDraft ? [nextDraft] : [];
       })
     );
+
+    const target = draftPrompts.find((draft) => draft.id === id);
+    const nextTarget = target ? updater(target) : null;
+
+    if (!target) {
+      return;
+    }
+
+    try {
+      if (!nextTarget) {
+        await apiClient.deletePromptDraft(id, token);
+        return;
+      }
+
+      if (nextTarget.body !== target.body && nextTarget.status === "Ready") {
+        await apiClient.regeneratePromptDraft(id, token);
+        return;
+      }
+
+      await apiClient.updatePromptDraft(
+        id,
+        {
+          title: nextTarget.title,
+          body: nextTarget.body
+        },
+        token
+      );
+    } catch {
+      setStatus("Prompt update is reflected locally; backend sync failed");
+    }
   };
 
   return (
@@ -430,7 +559,7 @@ export function ChatHubExperience(): JSX.Element {
                         <div className="min-w-0">
                           <p className="text-base font-medium text-[#231f1a]">{model.name}</p>
                           <p className="text-sm text-[#8b8379]">
-                            <span className="mr-1 text-[#3ea35f]">•</span>
+                            <span className="mr-1 text-[#3ea35f]">Ã¢â‚¬Â¢</span>
                             {model.provider}
                           </p>
                           <p className="mt-1 text-xs leading-5 text-[#776f66]">{model.summary}</p>
@@ -469,10 +598,19 @@ export function ChatHubExperience(): JSX.Element {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#b18c76]">
                     Active model
                   </p>
-                  <p className="mt-2 text-lg font-semibold text-[#26231f]">{activeModelData.name}</p>
-                  <p className="mt-1 max-w-[240px] text-sm leading-6 text-[#7a7168]">
-                    {activeModelData.summary}
-                  </p>
+                  {catalogLoading ? (
+                    <>
+                      <div className="mt-3 skeleton h-5 w-28 rounded-full" />
+                      <div className="mt-3 skeleton h-12 w-full rounded-2xl" />
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-lg font-semibold text-[#26231f]">{activeModelData.name}</p>
+                      <p className="mt-1 max-w-[240px] text-sm leading-6 text-[#7a7168]">
+                        {activeModelData.summary}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -513,7 +651,7 @@ export function ChatHubExperience(): JSX.Element {
               <div className="flex flex-col gap-3 border-t border-[#e5ddd3] px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   {actionButtons.map((action) => {
-                    const commonClasses = `inline-flex h-11 w-11 items-center justify-center rounded-2xl border text-xs font-medium shadow-[0_6px_14px_rgba(46,32,18,0.04)] ${action.tone}`;
+                    const commonClasses = `inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-2xl border text-xs font-medium shadow-[0_6px_14px_rgba(46,32,18,0.04)] ${action.tone}`;
 
                     if (action.kind === "image") {
                       return (
@@ -602,7 +740,7 @@ export function ChatHubExperience(): JSX.Element {
                     <RobotIcon className="h-[14px] w-[14px]" />
                     <span>Agent</span>
                     <span className="rounded-full bg-[#d9d5ce] px-2 py-0.5 text-[11px]">
-                      {agentEnabled ? "+" : "•"}
+                      {agentEnabled ? "+" : "Ã¢â‚¬Â¢"}
                     </span>
                   </button>
                 </div>
@@ -614,7 +752,9 @@ export function ChatHubExperience(): JSX.Element {
                   </div>
                   <button
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-[#cb682b] text-white"
-                    onClick={handleSend}
+                    onClick={() => {
+                      void handleSend();
+                    }}
                     type="button"
                   >
                     <SendIcon className="h-5 w-5" />
@@ -734,7 +874,9 @@ export function ChatHubExperience(): JSX.Element {
                 </div>
                 <button
                   className="rounded-full border border-[#ddd4ca] px-4 py-2 text-sm font-medium text-[#5e554b]"
-                  onClick={() => addDraftFromPrompt(prompt || activeSuggestions[0])}
+                  onClick={() => {
+                    void addDraftFromPrompt(prompt || activeSuggestions[0]);
+                  }}
                   type="button"
                 >
                   Save current prompt
@@ -759,7 +901,7 @@ export function ChatHubExperience(): JSX.Element {
                         <button
                           className="rounded-full bg-[#cb682b] px-4 py-2 text-sm font-semibold text-white"
                           onClick={() => {
-                            updateDraft(draft.id, (current) => ({ ...current, status: "Queued" }));
+                            void updateDraft(draft.id, (current) => ({ ...current, status: "Queued" }));
                             setStatus(`Queued "${draft.title}" for backend execution`);
                           }}
                           type="button"
@@ -779,7 +921,7 @@ export function ChatHubExperience(): JSX.Element {
                         <button
                           className="rounded-full border border-[#ddd4ca] px-4 py-2 text-sm font-medium text-[#5e554b]"
                           onClick={() => {
-                            updateDraft(draft.id, (current) => ({
+                            void updateDraft(draft.id, (current) => ({
                               ...current,
                               body: `${current.body} Include implementation notes and API fields we should persist.`,
                               status: "Ready"
@@ -793,7 +935,7 @@ export function ChatHubExperience(): JSX.Element {
                         <button
                           className="rounded-full border border-[#f0d0c0] px-4 py-2 text-sm font-medium text-[#b05e34]"
                           onClick={() => {
-                            updateDraft(draft.id, () => null);
+                            void updateDraft(draft.id, () => null);
                             setStatus(`Deleted "${draft.title}"`);
                           }}
                           type="button"
@@ -833,7 +975,7 @@ export function ChatHubExperience(): JSX.Element {
                       >
                         <span className="mt-1">{tool.icon}</span>
                         <span>
-                          <span className="block font-medium">{tool.label}</span>
+                          <span className="block font-medium">{t(tool.label)}</span>
                           <span className="mt-1 block text-sm leading-6 text-[#847a6f]">{tool.note}</span>
                         </span>
                       </button>
@@ -858,7 +1000,7 @@ export function ChatHubExperience(): JSX.Element {
                         type="button"
                       >
                         {tool.icon}
-                        {tool.label}
+                        {t(tool.label)}
                       </button>
                     ))}
                   </div>
