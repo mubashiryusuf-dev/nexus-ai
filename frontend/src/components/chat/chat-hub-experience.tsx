@@ -559,7 +559,7 @@ export function ChatHubExperience(): JSX.Element {
                         <div className="min-w-0">
                           <p className="text-base font-medium text-[#231f1a]">{model.name}</p>
                           <p className="text-sm text-[#8b8379]">
-                            <span className="mr-1 text-[#3ea35f]">Ã¢â‚¬Â¢</span>
+                            <span className="mr-1 text-[#3ea35f]">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</span>
                             {model.provider}
                           </p>
                           <p className="mt-1 text-xs leading-5 text-[#776f66]">{model.summary}</p>
@@ -740,7 +740,7 @@ export function ChatHubExperience(): JSX.Element {
                     <RobotIcon className="h-[14px] w-[14px]" />
                     <span>Agent</span>
                     <span className="rounded-full bg-[#d9d5ce] px-2 py-0.5 text-[11px]">
-                      {agentEnabled ? "+" : "Ã¢â‚¬Â¢"}
+                      {agentEnabled ? "+" : "ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢"}
                     </span>
                   </button>
                 </div>
@@ -884,68 +884,87 @@ export function ChatHubExperience(): JSX.Element {
               </div>
 
               <div className="mt-4 space-y-3">
-                {draftPrompts.map((draft) => (
-                  <article key={draft.id} className="rounded-[20px] border border-[#ece3d8] bg-[#fcfaf7] p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="max-w-[620px]">
-                        <div className="flex items-center gap-3">
-                          <h3 className="text-base font-semibold text-[#221e19]">{draft.title}</h3>
-                          <span className="rounded-full bg-[#f1e6dc] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#b06d43]">
-                            {draft.status}
-                          </span>
+                {sessionLoading
+                  ? [0, 1].map((item) => (
+                      <article key={item} className="rounded-[20px] border border-[#ece3d8] bg-[#fcfaf7] p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="max-w-[620px] flex-1">
+                            <div className="flex items-center gap-3">
+                              <div className="skeleton h-5 w-36 rounded-full" />
+                              <div className="skeleton h-6 w-16 rounded-full" />
+                            </div>
+                            <div className="mt-3 skeleton h-16 w-full rounded-2xl" />
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {[0, 1, 2, 3].map((action) => (
+                              <div key={action} className="skeleton h-10 w-24 rounded-full" />
+                            ))}
+                          </div>
                         </div>
-                        <p className="mt-3 text-sm leading-6 text-[#665d54]">{draft.body}</p>
-                      </div>
+                      </article>
+                    ))
+                  : draftPrompts.map((draft) => (
+                      <article key={draft.id} className="rounded-[20px] border border-[#ece3d8] bg-[#fcfaf7] p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="max-w-[620px]">
+                            <div className="flex items-center gap-3">
+                              <h3 className="text-base font-semibold text-[#221e19]">{draft.title}</h3>
+                              <span className="rounded-full bg-[#f1e6dc] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#b06d43]">
+                                {draft.status}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-sm leading-6 text-[#665d54]">{draft.body}</p>
+                          </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          className="rounded-full bg-[#cb682b] px-4 py-2 text-sm font-semibold text-white"
-                          onClick={() => {
-                            void updateDraft(draft.id, (current) => ({ ...current, status: "Queued" }));
-                            setStatus(`Queued "${draft.title}" for backend execution`);
-                          }}
-                          type="button"
-                        >
-                          Run
-                        </button>
-                        <button
-                          className="rounded-full border border-[#ddd4ca] px-4 py-2 text-sm font-medium text-[#5e554b]"
-                          onClick={() => {
-                            setPrompt(draft.body);
-                            setStatus(`Loaded "${draft.title}" into composer`);
-                          }}
-                          type="button"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="rounded-full border border-[#ddd4ca] px-4 py-2 text-sm font-medium text-[#5e554b]"
-                          onClick={() => {
-                            void updateDraft(draft.id, (current) => ({
-                              ...current,
-                              body: `${current.body} Include implementation notes and API fields we should persist.`,
-                              status: "Ready"
-                            }));
-                            setStatus(`Regenerated "${draft.title}"`);
-                          }}
-                          type="button"
-                        >
-                          Regenerate
-                        </button>
-                        <button
-                          className="rounded-full border border-[#f0d0c0] px-4 py-2 text-sm font-medium text-[#b05e34]"
-                          onClick={() => {
-                            void updateDraft(draft.id, () => null);
-                            setStatus(`Deleted "${draft.title}"`);
-                          }}
-                          type="button"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                ))}
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              className="rounded-full bg-[#cb682b] px-4 py-2 text-sm font-semibold text-white"
+                              onClick={() => {
+                                void updateDraft(draft.id, (current) => ({ ...current, status: "Queued" }));
+                                setStatus(`Queued "${draft.title}" for backend execution`);
+                              }}
+                              type="button"
+                            >
+                              Run
+                            </button>
+                            <button
+                              className="rounded-full border border-[#ddd4ca] px-4 py-2 text-sm font-medium text-[#5e554b]"
+                              onClick={() => {
+                                setPrompt(draft.body);
+                                setStatus(`Loaded "${draft.title}" into composer`);
+                              }}
+                              type="button"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="rounded-full border border-[#ddd4ca] px-4 py-2 text-sm font-medium text-[#5e554b]"
+                              onClick={() => {
+                                void updateDraft(draft.id, (current) => ({
+                                  ...current,
+                                  body: `${current.body} Include implementation notes and API fields we should persist.`,
+                                  status: "Ready"
+                                }));
+                                setStatus(`Regenerated "${draft.title}"`);
+                              }}
+                              type="button"
+                            >
+                              Regenerate
+                            </button>
+                            <button
+                              className="rounded-full border border-[#f0d0c0] px-4 py-2 text-sm font-medium text-[#b05e34]"
+                              onClick={() => {
+                                void updateDraft(draft.id, () => null);
+                                setStatus(`Deleted "${draft.title}"`);
+                              }}
+                              type="button"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
               </div>
             </div>
           </div>

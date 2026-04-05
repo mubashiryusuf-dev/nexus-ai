@@ -206,28 +206,39 @@ export function MarketplaceExperience(): React.JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  {(loading ? [0, 1, 2] : comparison).map((model, index) => (
-                    <tr key={loading ? `skeleton-${index}` : model.slug} className={index % 2 === 0 ? "bg-white" : "bg-[#fdfbf8]"}>
-                      <td className="px-5 py-4 text-sm font-semibold">
-                        {loading ? <div className="skeleton h-4 w-24 rounded-full" /> : model.name}
-                      </td>
-                      <td className="px-5 py-4 text-sm text-[#746d65]">
-                        {loading ? <div className="skeleton h-4 w-20 rounded-full" /> : model.provider}
-                      </td>
-                      <td className="px-5 py-4 text-sm">
-                        {loading ? <div className="skeleton h-4 w-10 rounded-full" /> : model.rating}
-                      </td>
-                      <td className="px-5 py-4 text-sm">
-                        {loading ? <div className="skeleton h-4 w-16 rounded-full" /> : model.contextWindow}
-                      </td>
-                      <td className="px-5 py-4 text-sm">
-                        {loading ? <div className="skeleton h-4 w-20 rounded-full" /> : model.priceLabel}
-                      </td>
-                      <td className="px-5 py-4 text-sm text-[#746d65]">
-                        {loading ? <div className="skeleton h-4 w-40 rounded-full" /> : model.bestFitUseCase}
-                      </td>
-                    </tr>
-                  ))}
+                  {loading
+                    ? [0, 1, 2].map((item, index) => (
+                        <tr key={`skeleton-${item}`} className={index % 2 === 0 ? "bg-white" : "bg-[#fdfbf8]"}>
+                          <td className="px-5 py-4 text-sm font-semibold">
+                            <div className="skeleton h-4 w-24 rounded-full" />
+                          </td>
+                          <td className="px-5 py-4 text-sm text-[#746d65]">
+                            <div className="skeleton h-4 w-20 rounded-full" />
+                          </td>
+                          <td className="px-5 py-4 text-sm">
+                            <div className="skeleton h-4 w-10 rounded-full" />
+                          </td>
+                          <td className="px-5 py-4 text-sm">
+                            <div className="skeleton h-4 w-16 rounded-full" />
+                          </td>
+                          <td className="px-5 py-4 text-sm">
+                            <div className="skeleton h-4 w-20 rounded-full" />
+                          </td>
+                          <td className="px-5 py-4 text-sm text-[#746d65]">
+                            <div className="skeleton h-4 w-40 rounded-full" />
+                          </td>
+                        </tr>
+                      ))
+                    : comparison.map((model, index) => (
+                        <tr key={model.slug} className={index % 2 === 0 ? "bg-white" : "bg-[#fdfbf8]"}>
+                          <td className="px-5 py-4 text-sm font-semibold">{model.name}</td>
+                          <td className="px-5 py-4 text-sm text-[#746d65]">{model.provider}</td>
+                          <td className="px-5 py-4 text-sm">{model.rating}</td>
+                          <td className="px-5 py-4 text-sm">{model.contextWindow}</td>
+                          <td className="px-5 py-4 text-sm">{model.priceLabel}</td>
+                          <td className="px-5 py-4 text-sm text-[#746d65]">{model.bestFitUseCase}</td>
+                        </tr>
+                      ))}
                 </tbody>
               </table>
             </div>
