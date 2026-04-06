@@ -31,11 +31,17 @@ type HubTab =
   | "Build a business plan"
   | "Create content"
   | "Analyze & research";
-type AttachmentKind = "image" | "file" | "video";
+type AttachmentKind = "image" | "file" | "video" | "voice";
 
 interface AttachmentItem {
   kind: AttachmentKind;
   name: string;
+  url?: string;
+  mimeType?: string;
+}
+
+interface ChatMessageView extends ChatHistoryItem {
+  attachments?: AttachmentItem[];
 }
 
 interface PromptDraftView {
@@ -228,9 +234,13 @@ export function ChatHubExperience(): JSX.Element {
   const { toast } = useToast();
   const imageInputId = useId();
   const fileInputId = useId();
-  const videoInputId = useId();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const webcamStreamRef = useRef<MediaStream | null>(null);
   const [catalogModels, setCatalogModels] = useState<AiModelItem[]>([]);
   const [activeModel, setActiveModel] = useState(models[0].name);
   const [activeTab, setActiveTab] = useState<HubTab>("Use cases");
@@ -240,13 +250,15 @@ export function ChatHubExperience(): JSX.Element {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
+  const [webcamActive, setWebcamActive] = useState(false);
+  const [recordingVoiceNote, setRecordingVoiceNote] = useState(false);
   const [listening, setListening] = useState(false);
   const [selectedAction, setSelectedAction] = useState<string>("Guided discovery");
   const [draftPrompts, setDraftPrompts] = useState<PromptDraftView[]>(starterDrafts);
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [chatMessages, setChatMessages] = useState<ChatHistoryItem[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessageView[]>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
 
   useEffect(() => {
@@ -348,6 +360,15 @@ export function ChatHubExperience(): JSX.Element {
     setStatus(`${nextFiles.length} ${kind} attachment${nextFiles.length > 1 ? "s" : ""} added`);
   };
 
+  const stopVoiceRecorder = (): void => {
+    mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+    voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaRecorderRef.current = null;
+    voiceStreamRef.current = null;
+    voiceChunksRef.current = [];
+    setRecordingVoiceNote(false);
+  };
+
   const startRecognition = (mode: "voice" | "dictate"): void => {
     const browserWindow = window as BrowserWindow;
     const Recognition = browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition;
@@ -383,6 +404,66 @@ export function ChatHubExperience(): JSX.Element {
     setStatus(mode === "voice" ? "Listening for voice conversation..." : "Listening for dictation...");
   };
 
+  const handleVoiceNoteToggle = async (): Promise<void> => {
+    if (recordingVoiceNote) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus("Voice notes are not supported in this browser");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false
+      });
+
+      const mediaRecorder = new MediaRecorder(stream);
+      voiceStreamRef.current = stream;
+      mediaRecorderRef.current = mediaRecorder;
+      voiceChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          voiceChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const mimeType = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(voiceChunksRef.current, { type: mimeType });
+
+        if (blob.size > 0) {
+          const voiceNote: AttachmentItem = {
+            kind: "voice",
+            name: `voice-note-${Date.now()}.webm`,
+            url: URL.createObjectURL(blob),
+            mimeType
+          };
+
+          setAttachments((current) => [...current, voiceNote]);
+          setStatus("Voice note attached");
+        }
+
+        stopVoiceRecorder();
+      };
+
+      mediaRecorder.onerror = () => {
+        setStatus("Voice note recording failed");
+        stopVoiceRecorder();
+      };
+
+      mediaRecorder.start();
+      setRecordingVoiceNote(true);
+      setStatus("Recording voice note...");
+    } catch {
+      setStatus("Microphone permission was denied or is unavailable");
+    }
+  };
+
   const handleScreenShare = async (): Promise<void> => {
     if (screenSharing) {
       setScreenSharing(false);
@@ -407,6 +488,46 @@ export function ChatHubExperience(): JSX.Element {
       setStatus("Screen sharing started");
     } catch {
       setStatus("Screen sharing was cancelled or unavailable");
+    }
+  };
+
+  const stopWebcamStream = (): void => {
+    webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
+    webcamStreamRef.current = null;
+    setWebcamActive(false);
+  };
+
+  const handleWebcamToggle = async (): Promise<void> => {
+    if (webcamActive) {
+      stopWebcamStream();
+      setStatus("Webcam stopped");
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus("Webcam is not supported in this browser");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false
+      });
+
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          webcamStreamRef.current = null;
+          setWebcamActive(false);
+          setStatus("Webcam stopped");
+        };
+      });
+
+      webcamStreamRef.current = stream;
+      setWebcamActive(true);
+      setStatus("Webcam started");
+    } catch {
+      setStatus("Webcam permission was denied or is unavailable");
     }
   };
 
@@ -448,16 +569,20 @@ export function ChatHubExperience(): JSX.Element {
   };
 
   const handleSend = async (): Promise<void> => {
-    const finalPrompt = prompt.trim() || activeSuggestions[0] || "Help me get started";
-    if (!finalPrompt) return;
+    const pendingAttachments = attachments;
+    const hasVoiceNote = pendingAttachments.some((item) => item.kind === "voice");
+    const finalPrompt = prompt.trim() || (hasVoiceNote ? "Voice note attached" : activeSuggestions[0] || "Help me get started");
+    if (!finalPrompt && pendingAttachments.length === 0) return;
 
-    const userMsg: ChatHistoryItem = {
+    const userMsg: ChatMessageView = {
       role: "user",
       content: finalPrompt,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      attachments: pendingAttachments
     };
     setChatMessages((prev) => [...prev, userMsg]);
     setPrompt("");
+    setAttachments([]);
     setStatus(`Sending to ${activeModelData.name}…`);
     setIsAiTyping(true);
 
@@ -468,7 +593,7 @@ export function ChatHubExperience(): JSX.Element {
         context: agentEnabled ? "You are a helpful NexusAI assistant." : undefined
       });
 
-      const assistantMsg: ChatHistoryItem = {
+      const assistantMsg: ChatMessageView = {
         role: "assistant",
         content: res.reply,
         timestamp: res.timestamp
@@ -496,6 +621,26 @@ export function ChatHubExperience(): JSX.Element {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, isAiTyping]);
+
+  useEffect(() => {
+    if (!videoPreviewRef.current) {
+      return;
+    }
+
+    videoPreviewRef.current.srcObject = webcamStreamRef.current;
+  }, [webcamActive]);
+
+  useEffect(() => {
+    return () => {
+      [...attachments, ...chatMessages.flatMap((message) => message.attachments ?? [])].forEach((item) => {
+        if (item.kind === "voice" && item.url) {
+          URL.revokeObjectURL(item.url);
+        }
+      });
+      stopVoiceRecorder();
+      stopWebcamStream();
+    };
+  }, [attachments, chatMessages]);
 
   const updateDraft = async (
     id: string,
@@ -683,6 +828,20 @@ export function ChatHubExperience(): JSX.Element {
                     {/* Bubble */}
                     <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-6 ${msg.role === "user" ? "bg-[#c8622a] text-white rounded-tr-sm" : "bg-[#faf7f2] text-[#2c2822] border border-[#e8dfd4] rounded-tl-sm"}`}>
                       <p style={{ whiteSpace: "pre-wrap" }}>{msg.content}</p>
+                      {msg.attachments?.some((item) => item.kind === "voice" && item.url) ? (
+                        <div className="mt-3 space-y-2">
+                          {msg.attachments
+                            .filter((item) => item.kind === "voice" && item.url)
+                            .map((item) => (
+                              <audio
+                                key={`${item.name}-${item.url}`}
+                                controls
+                                className="max-w-full"
+                                src={item.url}
+                              />
+                            ))}
+                        </div>
+                      ) : null}
                       <p className={`mt-1.5 text-[10px] ${msg.role === "user" ? "text-white/60 text-right" : "text-[#9e9b93]"}`}>
                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </p>
@@ -754,16 +913,16 @@ export function ChatHubExperience(): JSX.Element {
 
                     if (action.kind === "video") {
                       return (
-                        <label key={action.kind} className={`${commonClasses} cursor-pointer`}>
-                          <ActionIcon kind={action.kind} />
-                          <input
-                            accept="video/*"
-                            className="hidden"
-                            id={videoInputId}
-                            onChange={(event) => handleAttach("video", event.target.files)}
-                            type="file"
-                          />
-                        </label>
+                        <button
+                          key={action.kind}
+                          className={commonClasses}
+                          onClick={() => {
+                            void handleWebcamToggle();
+                          }}
+                          type="button"
+                        >
+                          {webcamActive ? "On" : <ActionIcon kind={action.kind} />}
+                        </button>
                       );
                     }
 
@@ -786,10 +945,19 @@ export function ChatHubExperience(): JSX.Element {
                       <button
                         key={action.kind}
                         className={commonClasses}
-                        onClick={() => startRecognition(action.kind === "voice" ? "voice" : "dictate")}
+                        onClick={() => {
+                          if (action.kind === "voice") {
+                            void handleVoiceNoteToggle();
+                            return;
+                          }
+
+                          startRecognition("dictate");
+                        }}
                         type="button"
                       >
-                        {listening && action.kind !== "dictate" ? "..." : <ActionIcon kind={action.kind} />}
+                        {action.kind === "voice"
+                          ? (recordingVoiceNote ? "..." : <ActionIcon kind={action.kind} />)
+                          : (listening ? "..." : <ActionIcon kind={action.kind} />)}
                       </button>
                     );
                   })}
@@ -822,7 +990,7 @@ export function ChatHubExperience(): JSX.Element {
                   </div>
                   <button
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-[#cb682b] text-white transition hover:bg-[#a34d1e] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={isAiTyping || !prompt.trim()}
+                    disabled={isAiTyping || (!prompt.trim() && attachments.length === 0)}
                     onClick={() => { void handleSend(); }}
                     type="button"
                     title="Send message (Enter)"
@@ -834,14 +1002,40 @@ export function ChatHubExperience(): JSX.Element {
                 </div>
               </div>
 
-              {(attachments.length > 0 || screenSharing || status) && (
-                <div className="flex flex-wrap items-center gap-2 border-t border-[#f1e8de] px-4 py-3 sm:px-5">
+              {(attachments.length > 0 || screenSharing || webcamActive || recordingVoiceNote || status) && (
+                <div className="border-t border-[#f1e8de] px-4 py-3 sm:px-5">
+                  {webcamActive ? (
+                    <div className="mb-3 overflow-hidden rounded-[18px] border border-[#f0d6d6] bg-[#fff6f6] p-2">
+                      <video
+                        ref={videoPreviewRef}
+                        autoPlay
+                        className="h-40 w-full rounded-[14px] bg-[#1c1a16] object-cover"
+                        muted
+                        playsInline
+                      />
+                    </div>
+                  ) : null}
+                  {attachments.some((item) => item.kind === "voice" && item.url) ? (
+                    <div className="mb-3 space-y-2">
+                      {attachments
+                        .filter((item) => item.kind === "voice" && item.url)
+                        .map((item) => (
+                          <audio
+                            key={`${item.name}-${item.url}`}
+                            controls
+                            className="w-full"
+                            src={item.url}
+                          />
+                        ))}
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap items-center gap-2">
                   {attachments.map((item) => (
                     <span
                       key={`${item.kind}-${item.name}`}
                       className="rounded-full bg-[#f6f1ea] px-3 py-1 text-xs text-[#645c54]"
                     >
-                      {item.kind}: {item.name}
+                      {item.kind === "voice" ? "voice note attached" : `${item.kind}: ${item.name}`}
                     </span>
                   ))}
                   {screenSharing ? (
@@ -849,9 +1043,20 @@ export function ChatHubExperience(): JSX.Element {
                       Screen sharing active
                     </span>
                   ) : null}
+                  {webcamActive ? (
+                    <span className="rounded-full bg-[#fff1f2] px-3 py-1 text-xs text-[#be123c]">
+                      Webcam active
+                    </span>
+                  ) : null}
+                  {recordingVoiceNote ? (
+                    <span className="rounded-full bg-[#f7f1ff] px-3 py-1 text-xs text-[#7c3aed]">
+                      Recording voice note
+                    </span>
+                  ) : null}
                   <span className="rounded-full bg-[#fbf7f2] px-3 py-1 text-xs text-[#8a8177]">
                     {status}
                   </span>
+                  </div>
                 </div>
               )}
             </div>
