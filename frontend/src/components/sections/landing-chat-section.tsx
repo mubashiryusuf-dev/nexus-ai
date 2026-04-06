@@ -15,6 +15,12 @@ interface AttachmentItem {
   mimeType?: string;
 }
 
+interface SavedScreenRecording {
+  name: string;
+  url: string;
+  mimeType: string;
+}
+
 interface BrowserSpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
@@ -250,8 +256,12 @@ export function LandingChatSection(): JSX.Element {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
+  const screenRecorderRef = useRef<MediaRecorder | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const screenChunksRef = useRef<Blob[]>([]);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const webcamStreamRef = useRef<MediaStream | null>(null);
+  const [savedScreenRecording, setSavedScreenRecording] = useState<SavedScreenRecording | null>(null);
   const activeItems = tabs.find((tab) => tab.name === activeTab)?.items ?? [];
 
   const handleAttach = (kind: AttachmentKind, fileList: FileList | null): void => {
@@ -376,9 +386,31 @@ export function LandingChatSection(): JSX.Element {
   };
 
   const handleScreenShare = async (): Promise<void> => {
-    if (screenSharing) {
+    const stopScreenShare = (nextStatus = "Screen sharing stopped"): void => {
+      if (screenRecorderRef.current && screenRecorderRef.current.state !== "inactive") {
+        screenRecorderRef.current.stop();
+      } else {
+        screenChunksRef.current = [];
+      }
+
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
       setScreenSharing(false);
-      setStatus("Screen sharing stopped");
+      setStatus(nextStatus);
+    };
+
+    if (screenSharing) {
+      stopScreenShare();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setStatus("Screen sharing is not supported in this browser");
+      return;
+    }
+
+    if (typeof MediaRecorder === "undefined") {
+      setStatus("Screen recording is not supported in this browser");
       return;
     }
 
@@ -388,13 +420,55 @@ export function LandingChatSection(): JSX.Element {
         audio: false
       });
 
+      const mediaRecorder = new MediaRecorder(stream);
+      screenRecorderRef.current = mediaRecorder;
+      screenStreamRef.current = stream;
+      screenChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          screenChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const mimeType = mediaRecorder.mimeType || "video/webm";
+        const blob = new Blob(screenChunksRef.current, { type: mimeType });
+
+        if (blob.size > 0) {
+          const recording: SavedScreenRecording = {
+            name: `screen-share-${Date.now()}.webm`,
+            url: URL.createObjectURL(blob),
+            mimeType
+          };
+
+          setSavedScreenRecording((current) => {
+            if (current?.url) {
+              URL.revokeObjectURL(current.url);
+            }
+
+            return recording;
+          });
+          setStatus("Screen sharing stopped and saved as a video");
+        }
+
+        screenChunksRef.current = [];
+        screenRecorderRef.current = null;
+      };
+
+      mediaRecorder.onerror = () => {
+        screenChunksRef.current = [];
+        screenRecorderRef.current = null;
+        setStatus("Screen recording failed");
+      };
+
       stream.getTracks().forEach((track) => {
         track.onended = () => {
-          setScreenSharing(false);
-          setStatus("Screen sharing ended");
+          stopScreenShare("Screen sharing ended");
         };
       });
 
+      mediaRecorder.start();
       setScreenSharing(true);
       setStatus("Screen sharing started");
     } catch {
@@ -466,10 +540,22 @@ export function LandingChatSection(): JSX.Element {
           URL.revokeObjectURL(item.url);
         }
       });
+      if (savedScreenRecording?.url) {
+        URL.revokeObjectURL(savedScreenRecording.url);
+      }
+      if (screenRecorderRef.current) {
+        screenRecorderRef.current.ondataavailable = null;
+        screenRecorderRef.current.onstop = null;
+        screenRecorderRef.current.onerror = null;
+        if (screenRecorderRef.current.state !== "inactive") {
+          screenRecorderRef.current.stop();
+        }
+      }
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
       stopVoiceRecorder();
       stopWebcamStream();
     };
-  }, [attachments]);
+  }, [attachments, savedScreenRecording]);
 
   return (
     <div className="mx-auto mt-10 max-w-[980px]">
@@ -644,6 +730,28 @@ export function LandingChatSection(): JSX.Element {
                         src={item.url}
                       />
                     ))}
+                </div>
+              ) : null}
+              {savedScreenRecording ? (
+                <div className="mb-3 rounded-[18px] border border-[#d8eadf] bg-[#f4fbf7] p-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[#166534]">Saved screen recording</p>
+                      <p className="text-xs text-[#4b6355]">{savedScreenRecording.name}</p>
+                    </div>
+                    <a
+                      className="inline-flex items-center rounded-full border border-[#b7d7c4] bg-white px-3 py-1.5 text-xs font-medium text-[#166534]"
+                      download={savedScreenRecording.name}
+                      href={savedScreenRecording.url}
+                    >
+                      Download
+                    </a>
+                  </div>
+                  <video
+                    controls
+                    className="h-48 w-full rounded-[14px] bg-[#1c1a16] object-contain"
+                    src={savedScreenRecording.url}
+                  />
                 </div>
               ) : null}
               <div className="flex flex-wrap items-center gap-2">
