@@ -201,6 +201,8 @@ export function AgentsBuilderExperience(): React.JSX.Element {
   // Auth modal state
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<"signin" | "signup">("signin");
+  // True when the modal was auto-opened because the page requires authentication
+  const [authModalForced, setAuthModalForced] = useState(false);
 
   // Page tabs
   const [pageTab, setPageTab] = useState<PageTab>("builder");
@@ -228,10 +230,16 @@ export function AgentsBuilderExperience(): React.JSX.Element {
   // Tools drawer
   const [drawerTool, setDrawerTool] = useState<ToolCatalogItem | null>(null);
 
-  // Show auth modal immediately if not authenticated
+  // Show auth modal immediately if not authenticated — forced (cannot be dismissed)
   useEffect(() => {
     if (isReady && !isAuthenticated) {
+      setAuthModalMode("signin");
+      setAuthModalForced(true);
       setAuthModalOpen(true);
+    } else if (isReady && isAuthenticated) {
+      // User signed in — release the forced lock and close if it was forced
+      setAuthModalForced(false);
+      setAuthModalOpen(false);
     }
   }, [isReady, isAuthenticated]);
 
@@ -272,6 +280,7 @@ export function AgentsBuilderExperience(): React.JSX.Element {
 
   const openNewAgent = (): void => {
     if (!isAuthenticated) {
+      setAuthModalMode("signin");
       setAuthModalOpen(true);
       return;
     }
@@ -289,6 +298,7 @@ export function AgentsBuilderExperience(): React.JSX.Element {
 
   const handleCreate = async (): Promise<void> => {
     if (!isAuthenticated) {
+      setAuthModalMode("signin");
       setAuthModalOpen(true);
       return;
     }
@@ -333,11 +343,14 @@ export function AgentsBuilderExperience(): React.JSX.Element {
   return (
     <main className="min-h-[calc(100vh-73px)] bg-[#f7f3ed] text-[#26231f]">
 
-      {/* Auth guard modal */}
+      {/* Auth guard modal — disableClose when forced by page auth requirement */}
       <AuthModal
         isOpen={authModalOpen}
         mode={authModalMode}
-        onClose={() => setAuthModalOpen(false)}
+        disableClose={authModalForced}
+        onClose={() => {
+          if (!authModalForced) setAuthModalOpen(false);
+        }}
         onModeChange={setAuthModalMode}
       />
 

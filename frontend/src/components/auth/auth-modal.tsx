@@ -13,6 +13,8 @@ interface AuthModalProps {
   mode: AuthMode;
   onClose: () => void;
   onModeChange: (mode: AuthMode) => void;
+  /** When true the modal cannot be dismissed — used on gated pages */
+  disableClose?: boolean;
 }
 
 const featurePoints = [
@@ -34,7 +36,8 @@ export function AuthModal({
   isOpen,
   mode,
   onClose,
-  onModeChange
+  onModeChange,
+  disableClose = false
 }: AuthModalProps): React.JSX.Element | null {
   const { signIn, signInWithProvider, signUp } = useAuth();
   const { translateText: t } = useSiteLanguage();
@@ -60,7 +63,7 @@ export function AuthModal({
     }
 
     const handleEscape = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !disableClose) {
         onClose();
       }
     };
@@ -72,7 +75,7 @@ export function AuthModal({
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, disableClose]);
 
   const heading = useMemo(() => {
     return mode === "signin"
@@ -142,12 +145,15 @@ export function AuthModal({
 
   return (
     <div className="fixed inset-0 z-[80] grid place-items-center bg-[#2c241c]/45 p-4 backdrop-blur-sm sm:p-6">
-      <button
-        aria-label="Close authentication modal"
-        className="absolute inset-0 cursor-default"
-        onClick={onClose}
-        type="button"
-      />
+      {/* Backdrop — only clickable when close is allowed */}
+      {!disableClose && (
+        <button
+          aria-label="Close authentication modal"
+          className="absolute inset-0 cursor-default"
+          onClick={onClose}
+          type="button"
+        />
+      )}
 
       <div className="relative z-10 grid h-[min(740px,calc(100vh-2rem))] w-full max-w-[920px] overflow-hidden rounded-[32px] border border-white/70 bg-white shadow-[0_30px_100px_rgba(46,32,18,0.22)] lg:grid-cols-[0.82fr_1.18fr]">
         <div className="relative hidden h-full overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(234,125,58,0.18),transparent_30%),linear-gradient(180deg,#221b17_0%,#2b221d_60%,#3a2a20_100%)] px-8 py-7 text-white lg:flex lg:flex-col">
@@ -187,16 +193,28 @@ export function AuthModal({
         </div>
 
         <div className="relative flex h-full min-h-0 flex-col overflow-hidden px-5 py-5 sm:px-7 sm:py-6">
-          <button
-            aria-label="Close authentication modal"
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-[#dfd4c7] bg-[#faf7f2] text-[#7a6f65] transition hover:border-[#cdb9a8] hover:text-[#4a433d]"
-            onClick={onClose}
-            type="button"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-              <path d="M6 6 18 18M18 6 6 18" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-            </svg>
-          </button>
+          {/* X button — hidden when close is disabled */}
+          {!disableClose && (
+            <button
+              aria-label="Close authentication modal"
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-[#dfd4c7] bg-[#faf7f2] text-[#7a6f65] transition hover:border-[#cdb9a8] hover:text-[#4a433d]"
+              onClick={onClose}
+              type="button"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <path d="M6 6 18 18M18 6 6 18" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+              </svg>
+            </button>
+          )}
+          {/* Gated-page notice */}
+          {disableClose && (
+            <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full border border-[#f0d8c8] bg-[#fff5ee] px-3 py-1.5">
+              <svg className="h-3 w-3 text-[#c8622a]" fill="none" viewBox="0 0 24 24">
+                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+              </svg>
+              <span className="text-[10px] font-semibold text-[#c8622a]">Sign in required</span>
+            </div>
+          )}
 
           <div className="shrink-0 pr-12">
             <div className="flex border-b border-[#e3dbd0]">
