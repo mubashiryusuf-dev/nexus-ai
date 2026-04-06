@@ -2,7 +2,10 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-type SiteLanguage = "en" | "ur" | "ar";
+export type SiteLanguage =
+  | "en" | "ar" | "ur"
+  | "fr" | "de" | "es" | "pt" | "zh"
+  | "ja" | "ko" | "hi" | "tr" | "ru" | "it" | "nl";
 
 interface SiteLanguageContextValue {
   language: SiteLanguage;
@@ -12,7 +15,11 @@ interface SiteLanguageContextValue {
 
 const STORAGE_KEY = "nexusai-site-language";
 
-const translations: Record<Exclude<SiteLanguage, "en">, Record<string, string>> = {
+const ALL_LANGUAGES: SiteLanguage[] = [
+  "en","ar","ur","fr","de","es","pt","zh","ja","ko","hi","tr","ru","it","nl"
+];
+
+const translations: Partial<Record<SiteLanguage, Record<string, string>>> = {
   ur: {
     "Chat Hub": "چیٹ ہب",
     "Marketplace": "مارکیٹ پلیس",
@@ -24,6 +31,7 @@ const translations: Record<Exclude<SiteLanguage, "en">, Record<string, string>> 
     "Sign out": "سائن آؤٹ",
     "Sign in": "سائن اِن",
     "Sign up": "سائن اپ",
+    "Get Started": "شروع کریں",
     "Welcome back": "دوبارہ خوش آمدید",
     "Sign in to your NexusAI account to continue.": "جاری رکھنے کے لیے اپنے NexusAI اکاؤنٹ میں سائن اِن کریں۔",
     "Create your account": "اپنا اکاؤنٹ بنائیں",
@@ -62,6 +70,7 @@ const translations: Record<Exclude<SiteLanguage, "en">, Record<string, string>> 
     "Model Marketplace": "ماڈل مارکیٹ پلیس",
     "AI Research Feed": "AI ریسرچ فیڈ",
     "Agent Builder": "ایجنٹ بلڈر",
+    "Agent Library": "ایجنٹ لائبریری",
     "Language": "زبان"
   },
   ar: {
@@ -75,6 +84,7 @@ const translations: Record<Exclude<SiteLanguage, "en">, Record<string, string>> 
     "Sign out": "تسجيل الخروج",
     "Sign in": "تسجيل الدخول",
     "Sign up": "إنشاء حساب",
+    "Get Started": "ابدأ الآن",
     "Welcome back": "مرحبًا بعودتك",
     "Sign in to your NexusAI account to continue.": "سجل الدخول إلى حساب NexusAI للمتابعة.",
     "Create your account": "أنشئ حسابك",
@@ -113,7 +123,137 @@ const translations: Record<Exclude<SiteLanguage, "en">, Record<string, string>> 
     "Model Marketplace": "سوق النماذج",
     "AI Research Feed": "خلاصة أبحاث الذكاء الاصطناعي",
     "Agent Builder": "منشئ الوكلاء",
+    "Agent Library": "مكتبة الوكلاء",
     "Language": "اللغة"
+  },
+  fr: {
+    "Chat Hub": "Centre de discussion",
+    "Marketplace": "Marché",
+    "Discover New": "Découvrir",
+    "Agents": "Agents",
+    "Sign out": "Déconnexion",
+    "Sign in": "Se connecter",
+    "Get Started": "Commencer",
+    "Model Marketplace": "Marché des modèles",
+    "Agent Library": "Bibliothèque d'agents",
+    "Featured models": "Modèles vedettes",
+    "Language": "Langue"
+  },
+  de: {
+    "Chat Hub": "Chat-Hub",
+    "Marketplace": "Marktplatz",
+    "Discover New": "Entdecken",
+    "Agents": "Agenten",
+    "Sign out": "Abmelden",
+    "Sign in": "Anmelden",
+    "Get Started": "Loslegen",
+    "Model Marketplace": "Modellmarktplatz",
+    "Agent Library": "Agentenbibliothek",
+    "Featured models": "Empfohlene Modelle",
+    "Language": "Sprache"
+  },
+  es: {
+    "Chat Hub": "Centro de chat",
+    "Marketplace": "Mercado",
+    "Discover New": "Descubrir",
+    "Agents": "Agentes",
+    "Sign out": "Cerrar sesión",
+    "Sign in": "Iniciar sesión",
+    "Get Started": "Empezar",
+    "Model Marketplace": "Mercado de modelos",
+    "Agent Library": "Biblioteca de agentes",
+    "Featured models": "Modelos destacados",
+    "Language": "Idioma"
+  },
+  pt: {
+    "Chat Hub": "Central de chat",
+    "Marketplace": "Mercado",
+    "Discover New": "Descobrir",
+    "Agents": "Agentes",
+    "Sign out": "Sair",
+    "Sign in": "Entrar",
+    "Get Started": "Começar",
+    "Language": "Idioma"
+  },
+  zh: {
+    "Chat Hub": "聊天中心",
+    "Marketplace": "市场",
+    "Discover New": "发现新内容",
+    "Agents": "智能体",
+    "Sign out": "退出",
+    "Sign in": "登录",
+    "Get Started": "开始使用",
+    "Language": "语言"
+  },
+  ja: {
+    "Chat Hub": "チャットハブ",
+    "Marketplace": "マーケットプレイス",
+    "Discover New": "新発見",
+    "Agents": "エージェント",
+    "Sign out": "サインアウト",
+    "Sign in": "サインイン",
+    "Get Started": "始める",
+    "Language": "言語"
+  },
+  ko: {
+    "Chat Hub": "채팅 허브",
+    "Marketplace": "마켓플레이스",
+    "Discover New": "새로 발견",
+    "Agents": "에이전트",
+    "Sign out": "로그아웃",
+    "Sign in": "로그인",
+    "Get Started": "시작하기",
+    "Language": "언어"
+  },
+  hi: {
+    "Chat Hub": "चैट हब",
+    "Marketplace": "बाज़ार",
+    "Discover New": "नया खोजें",
+    "Agents": "एजेंट",
+    "Sign out": "साइन आउट",
+    "Sign in": "साइन इन",
+    "Get Started": "शुरू करें",
+    "Language": "भाषा"
+  },
+  tr: {
+    "Chat Hub": "Sohbet Merkezi",
+    "Marketplace": "Pazar",
+    "Discover New": "Yeni Keşfet",
+    "Agents": "Ajanlar",
+    "Sign out": "Çıkış yap",
+    "Sign in": "Giriş yap",
+    "Get Started": "Başla",
+    "Language": "Dil"
+  },
+  ru: {
+    "Chat Hub": "Чат-хаб",
+    "Marketplace": "Маркетплейс",
+    "Discover New": "Открыть новое",
+    "Agents": "Агенты",
+    "Sign out": "Выйти",
+    "Sign in": "Войти",
+    "Get Started": "Начать",
+    "Language": "Язык"
+  },
+  it: {
+    "Chat Hub": "Hub Chat",
+    "Marketplace": "Mercato",
+    "Discover New": "Scopri",
+    "Agents": "Agenti",
+    "Sign out": "Esci",
+    "Sign in": "Accedi",
+    "Get Started": "Inizia",
+    "Language": "Lingua"
+  },
+  nl: {
+    "Chat Hub": "Chat Hub",
+    "Marketplace": "Marktplaats",
+    "Discover New": "Ontdek",
+    "Agents": "Agenten",
+    "Sign out": "Uitloggen",
+    "Sign in": "Inloggen",
+    "Get Started": "Beginnen",
+    "Language": "Taal"
   }
 };
 
@@ -128,29 +268,34 @@ export function SiteLanguageProvider({
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY) as SiteLanguage | null;
-    if (stored === "en" || stored === "ur" || stored === "ar") {
+    if (stored && ALL_LANGUAGES.includes(stored)) {
       setLanguageState(stored);
     }
   }, []);
 
   useEffect(() => {
     document.documentElement.lang = language;
-    document.documentElement.dir = language === "ar" || language === "ur" ? "rtl" : "ltr";
+    document.documentElement.dir = (language === "ar" || language === "ur") ? "rtl" : "ltr";
     window.localStorage.setItem(STORAGE_KEY, language);
   }, [language]);
+
+  const setLanguage = (lang: SiteLanguage): void => {
+    if (ALL_LANGUAGES.includes(lang)) {
+      setLanguageState(lang);
+    }
+  };
 
   const value = useMemo<SiteLanguageContextValue>(() => {
     return {
       language,
-      setLanguage: setLanguageState,
+      setLanguage,
       translateText: (text: string) => {
-        if (language === "en") {
-          return text;
-        }
-
-        return translations[language][text] ?? text;
+        if (language === "en") return text;
+        const dict = translations[language];
+        return (dict && dict[text]) ? dict[text] : text;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 
   return (
@@ -162,10 +307,8 @@ export function SiteLanguageProvider({
 
 export function useSiteLanguage(): SiteLanguageContextValue {
   const value = useContext(SiteLanguageContext);
-
   if (!value) {
     throw new Error("useSiteLanguage must be used within SiteLanguageProvider");
   }
-
   return value;
 }

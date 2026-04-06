@@ -33,6 +33,20 @@ const config: Config = {
       backgroundImage: {
         "hero-radial":
           "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(200,98,42,0.08) 0%, transparent 70%)"
+      },
+      keyframes: {
+        "slide-in-right": {
+          "0%": { transform: "translateX(100%)", opacity: "0" },
+          "100%": { transform: "translateX(0)", opacity: "1" }
+        },
+        "fade-up": {
+          "0%": { transform: "translateY(12px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" }
+        }
+      },
+      animation: {
+        "slide-in-right": "slide-in-right 0.25s cubic-bezier(0.16,1,0.3,1) forwards",
+        "fade-up": "fade-up 0.4s ease forwards"
       }
     }
   },

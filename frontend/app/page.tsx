@@ -3,6 +3,12 @@
 import Link from "next/link";
 
 import { LandingChatSection } from "@/components/sections/landing-chat-section";
+import {
+  ComparisonSection,
+  FeaturedModelsSection,
+  LlmLabsSection,
+  TrendingSection
+} from "@/components/sections/landing-dynamic-sections";
 
 const heroStats = [
   { value: "525+", label: "AI Models" },
@@ -28,14 +34,6 @@ const quickActions = [
   { emoji: "🔍", label: "Just exploring" }
 ];
 
-const featuredModels = [
-  { name: "GPT-5", lab: "OpenAI", rating: "4.9", tag: "Best Overall", price: "$15/1M", badge: "HOT", badgeColor: "bg-[#fff1e0] text-[#b35d00] border-[#ffd8a0]" },
-  { name: "Claude 3.7", lab: "Anthropic", rating: "4.8", tag: "Reasoning", price: "$3/1M", badge: "NEW", badgeColor: "bg-[#e2f5ef] text-[#0a5e49] border-[#a8dfc9]" },
-  { name: "Gemini 2.5", lab: "Google", rating: "4.7", tag: "Multimodal", price: "$7/1M", badge: "NEW", badgeColor: "bg-[#e2f5ef] text-[#0a5e49] border-[#a8dfc9]" },
-  { name: "Llama 3.3", lab: "Meta", rating: "4.5", tag: "Open Weight", price: "Free", badge: "OPEN SOURCE", badgeColor: "bg-[#ebf0fc] text-[#1e4da8] border-[#b3c8f5]" },
-  { name: "Mistral Large", lab: "Mistral", rating: "4.4", tag: "Enterprise", price: "$2/1M", badge: "BETA", badgeColor: "bg-[#fff8e0] text-[#8a5a00] border-[#f5d98a]" },
-  { name: "Command R+", lab: "Cohere", rating: "4.3", tag: "RAG", price: "$3/1M", badge: "HOT", badgeColor: "bg-[#fff1e0] text-[#b35d00] border-[#ffd8a0]" }
-];
 
 const builderCategories = [
   { title: "Text generation", emoji: "📝", note: "Blog posts, chats, summaries" },
@@ -45,43 +43,8 @@ const builderCategories = [
   { title: "Speech and audio", emoji: "🎙️", note: "Voiceovers, transcription" }
 ];
 
-const llmLabs = [
-  { name: "OpenAI", models: "12 models", bg: "bg-[#f0fff4]", text: "text-[#166534]" },
-  { name: "Anthropic", models: "8 models", bg: "bg-[#fef9ee]", text: "text-[#92400e]" },
-  { name: "Google", models: "10 models", bg: "bg-[#eff6ff]", text: "text-[#1d4ed8]" },
-  { name: "Meta AI", models: "6 models", bg: "bg-[#f5f3ff]", text: "text-[#5b21b6]" },
-  { name: "Mistral", models: "5 models", bg: "bg-[#fff1f2]", text: "text-[#9f1239]" },
-  { name: "Cohere", models: "4 models", bg: "bg-[#f0fdfa]", text: "text-[#0f766e]" },
-  { name: "xAI", models: "3 models", bg: "bg-[#fafafa]", text: "text-[#171717]" },
-  { name: "Perplexity", models: "2 models", bg: "bg-[#fefce8]", text: "text-[#854d0e]" }
-];
 
-const comparisonRows = [
-  { model: "GPT-5", lab: "OpenAI", score: "4.9", speed: "Fast", cost: "High", api: "Yes" },
-  { model: "Claude 3.7", lab: "Anthropic", score: "4.8", speed: "Medium", cost: "High", api: "Yes" },
-  { model: "Gemini 2.5", lab: "Google", score: "4.7", speed: "Fast", cost: "Medium", api: "Yes" },
-  { model: "Llama 3.3", lab: "Meta", score: "4.5", speed: "Fast", cost: "Low", api: "No" },
-  { model: "Mistral Large", lab: "Mistral", score: "4.4", speed: "Fast", cost: "Medium", api: "Yes" },
-  { model: "Command R+", lab: "Cohere", score: "4.3", speed: "Medium", cost: "Medium", api: "Yes" }
-];
 
-const trendingCards = [
-  {
-    title: "GPT-5 sets new frontier on MMLU and HumanEval",
-    meta: "Benchmark jump",
-    body: "Achieves 95.4% on MMLU and 96.2% on HumanEval — surpassing all prior models in both reasoning and coding."
-  },
-  {
-    title: "Claude Extended Thinking improves math by 40%",
-    meta: "Product update",
-    body: "Extended thinking mode in Claude 3.7 shows a 40% lift on complex MATH dataset problems requiring multi-step proofs."
-  },
-  {
-    title: "Open models keep winning on cost efficiency",
-    meta: "Budget watch",
-    body: "Llama 3.3 beats GPT-4o on multilingual tasks at 1/10th the cost — open-source is closing the quality gap fast."
-  }
-];
 
 const budgetCards = [
   { title: "Starter", price: "$10–$25", note: "Best for testing prompts and small personal workflows.", tone: "bg-[#dff4ff] border-[#b8e4f9]" },
@@ -207,60 +170,14 @@ export default function HomePage(): JSX.Element {
         </div>
       </section>
 
-      {/* ── Featured Models ──────────────────────────────── */}
+      {/* ── Featured Models (dynamic) ────────────────────── */}
       <section className="mx-auto mt-14 max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
         <SectionTitle
           eyebrow="Featured models"
           title="A curated marketplace for top AI models"
           description="Browse the leading models people evaluate most often when choosing a production-ready AI stack."
         />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {featuredModels.map((model, index) => (
-            <article
-              key={model.name}
-              className="card-hover animate-fade-up rounded-[24px] border border-[#eadfd2] bg-white p-5 shadow-[0_12px_30px_rgba(46,32,18,0.05)]"
-              style={{ animationDelay: `${index * 80}ms` }}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f6f1ea] text-sm font-bold text-[#554d44]">
-                    {model.lab.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold tracking-[-0.03em]">{model.name}</h3>
-                    <p className="text-xs text-[#7e766e]">{model.lab}</p>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1.5">
-                  <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold tracking-wide ${model.badgeColor}`}>
-                    {model.badge}
-                  </span>
-                  <span className="text-[11px] text-[#9e9b93]">#{index + 1}</span>
-                </div>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl bg-[#fbf8f4] px-2 py-2.5">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#a79d92]">Rating</p>
-                  <p className="mt-1 text-sm font-semibold">{model.rating}</p>
-                </div>
-                <div className="rounded-xl bg-[#fbf8f4] px-2 py-2.5">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#a79d92]">Price</p>
-                  <p className="mt-1 text-sm font-semibold">{model.price}</p>
-                </div>
-                <div className="rounded-xl bg-[#fbf8f4] px-2 py-2.5">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-[#a79d92]">Focus</p>
-                  <p className="mt-1 text-sm font-semibold">{model.tag}</p>
-                </div>
-              </div>
-              <Link
-                href="/marketplace"
-                className="mt-4 block w-full rounded-full border border-[#eadfd2] py-2.5 text-center text-sm font-medium text-[#4f483f] transition hover:border-[#c8622a] hover:text-[#c8622a]"
-              >
-                View model →
-              </Link>
-            </article>
-          ))}
-        </div>
+        <FeaturedModelsSection />
       </section>
 
       {/* ── Builder categories ───────────────────────────── */}
@@ -283,88 +200,26 @@ export default function HomePage(): JSX.Element {
         </div>
       </section>
 
-      {/* ── LLM Labs ────────────────────────────────────── */}
+      {/* ── LLM Labs (dynamic) ──────────────────────────── */}
       <section className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
         <SectionTitle eyebrow="Browse by LLM lab" title="Explore the major model providers" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {llmLabs.map((lab, i) => (
-            <article
-              key={lab.name}
-              className="card-hover animate-fade-up flex items-center gap-4 rounded-[22px] border border-[#eadfd2] bg-white p-4 shadow-[0_10px_24px_rgba(46,32,18,0.04)]"
-              style={{ animationDelay: `${i * 50}ms` }}
-            >
-              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${lab.bg} ${lab.text}`}>
-                {lab.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-[#2d2822]">{lab.name}</h3>
-                <p className="text-xs text-[#7b736a]">{lab.models}</p>
-              </div>
-              <svg className="ml-auto h-4 w-4 shrink-0 text-[#c8c0b6]" fill="none" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8"/></svg>
-            </article>
-          ))}
-        </div>
+        <LlmLabsSection />
       </section>
 
-      {/* ── Comparison table ────────────────────────────── */}
+      {/* ── Comparison table (dynamic) ──────────────────── */}
       <section className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
         <SectionTitle
           eyebrow="Flagship comparison"
           title="Compare performance at a glance"
           description="A compact view of the top models ranked by rating, speed, and cost."
         />
-        <div className="overflow-hidden rounded-[26px] border border-[#eadfd2] bg-white shadow-[0_14px_34px_rgba(46,32,18,0.06)]">
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-left">
-              <thead className="bg-[#fbf7f2] text-[11px] uppercase tracking-[0.18em] text-[#9e9489]">
-                <tr>
-                  {["Model", "Lab", "Score", "Speed", "Cost", "API"].map((head) => (
-                    <th key={head} className="px-5 py-4 font-semibold">{head}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {comparisonRows.map((row, index) => (
-                  <tr key={row.model} className={`transition hover:bg-[#fdf9f5] ${index % 2 === 0 ? "bg-white" : "bg-[#fdfbf8]"}`}>
-                    <td className="px-5 py-3.5 text-sm font-semibold text-[#2e2923]">{row.model}</td>
-                    <td className="px-5 py-3.5 text-sm text-[#746d65]">{row.lab}</td>
-                    <td className="px-5 py-3.5">
-                      <span className="rounded-full bg-[#fff1e0] px-2.5 py-0.5 text-xs font-semibold text-[#b35d00]">{row.score}</span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${row.speed === "Fast" ? "bg-[#eaf6ed] text-[#35744a]" : "bg-[#fdf5e0] text-[#8a5a00]"}`}>{row.speed}</span>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-[#746d65]">{row.cost}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${row.api === "Yes" ? "bg-[#ebf0fc] text-[#1e4da8]" : "bg-[#f4f2ee] text-[#9e9b93]"}`}>{row.api}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ComparisonSection />
       </section>
 
-      {/* ── Trending ────────────────────────────────────── */}
+      {/* ── Trending (dynamic — research feed) ──────────── */}
       <section className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
         <SectionTitle eyebrow="Trending this week" title="What teams are talking about right now" />
-        <div className="grid gap-4 lg:grid-cols-3">
-          {trendingCards.map((card, index) => (
-            <article
-              key={card.title}
-              className="card-hover animate-fade-up rounded-[24px] border border-[#eadfd2] bg-white p-5 shadow-[0_12px_30px_rgba(46,32,18,0.05)]"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="rounded-full bg-[#f8f2ea] px-3 py-1 text-[11px] font-semibold text-[#a25b30]">{card.meta}</span>
-                <span className="text-xs text-[#a59a8e]">0{index + 1}</span>
-              </div>
-              <h3 className="mt-4 text-base font-semibold leading-snug tracking-[-0.02em]">{card.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-[#7b736b]">{card.body}</p>
-            </article>
-          ))}
-        </div>
+        <TrendingSection />
       </section>
 
       {/* ── Budget tiers ────────────────────────────────── */}

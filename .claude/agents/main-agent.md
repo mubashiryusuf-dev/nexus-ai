@@ -1,230 +1,39 @@
-You are the Integration Agent for NexusAI, working in coordination with the Backend Agent. Follow all defined rules, flows, and architecture strictly.
+Update the NexusAI frontend and backend with the following tasks:
 
-Your task is to transform the NexusAI project into a fully integrated, production-ready web application with dynamic data, complete API coverage, AI chat capabilities, and improved UI using Material UI — without breaking existing design.
+1. **Agents Page Flow**
+   - If a user navigates to the Agents page and is not signed in, show the Sign In / Sign Up modal first.
+   - Only allow creating or using agents after successful sign-in.
+   - When a user creates a new agent:
+     - Create a new page that copies the UI layout from the attached screenshot (`image.png`).
+     - Navigate the user to this new agent page for interacting with the agent.
 
----
+2. **Header Language Dropdown**
+   - Fix crashing issue when selecting a language.
+   - Ensure proper persistence of the selected language and dynamic UI update.
 
-## 🎯 OBJECTIVE
+3. **Agents Page — New Button**
+   - Make the "New +" button fully functional according to `requirements.md`.
+   - Ensure it opens the agent creation workflow properly.
 
-Deliver a fully functional NexusAI app where:
-- Frontend is completely dynamic (no static/mock JSON)
-- Backend APIs are fully integrated and documented in Swagger
-- Authentication works securely (no invalid login)
-- Chat system works with dummy AI responses
-- UI is upgraded using Material UI (without disturbing layout)
-- All flows (Marketplace, Agents, Tasks, Chat, Auth, etc.) work end-to-end
-- Application is responsive and crash-free
+4. **Tools Tab**
+   - On the same Agents page, in the "Tools" tab:
+     - Display a list of tools with cards.
+     - Each card should have a footer button: "How to Configure".
+     - Clicking "How to Configure" opens a drawer with three tabs: Overview, Steps, Config.
+     - Show the relevant tool details in each drawer tab dynamically from backend endpoints.
 
----
+5. **Landing Page**
+   - Ensure all sections on the landing page are dynamic.
+   - Replace any static content with data fetched from backend endpoints.
+   - If necessary, create new backend endpoints or reuse existing ones to supply dynamic data.
 
-## 🧠 TASK BREAKDOWN
+6. **General Requirements**
+   - Maintain UI consistency; do not break existing layouts.
+   - Use Material UI where applicable but keep design consistent.
+   - All changes must be fully integrated with backend APIs and dynamic data.
 
-### 1. Frontend Refactor (CRITICAL)
-- Remove ALL static/mock JSON data
-- Replace with API-driven data from backend
-- Ensure:
-  - Loading states
-  - Error handling
-  - Empty state → "No data available"
-
----
-
-### 2. Full Backend Integration
-- Connect all frontend pages to backend endpoints:
-  - Auth
-  - Marketplace (models, filters)
-  - Agents
-  - Tasks
-  - Dashboard
-  - Prompts / Chat
-  - Research / Apps
-
-- Fix mismatches:
-  - Request payloads
-  - Response structures
-  - Endpoint paths
-
----
-
-### 3. Swagger Enhancement
-- Add ALL required endpoints
-- Ensure each endpoint includes:
-  - Request DTO
-  - Response schema
-  - Proper tagging
-
----
-
-### 4. Authentication Fix (IMPORTANT)
-- Fix issue: user logs in even if not exists ❌
-
-#### Correct behavior:
-- Signup:
-  - Check existing email
-  - Create user if not exists
-- Login:
-  - Only allow valid users
-  - Validate password
-  - Return JWT token
-
-- Integrate with frontend:
-  - Show errors via toast
-  - Store token
-  - Update header UI
-
----
-
-### 5. Chat APIs (NEW – IMPORTANT)
-
-Implement a complete Chat module with dummy AI responses:
-
-#### Backend:
-Create endpoints:
-
-1. POST /chat/send
-   - Request:
-     {
-       message: string,
-       model?: string,
-       context?: string
-     }
-   - Response:
-     {
-       success: true,
-       reply: string,
-       timestamp: string
-     }
-
-2. GET /chat/history
-   - Returns list of messages
-
-3. DELETE /chat/clear
-   - Clears chat history
-
-#### Dummy AI Logic:
-- Generate realistic AI-like responses:
-  - If message contains "hello" → greeting reply
-  - If "code" → return sample code snippet
-  - Otherwise → intelligent generic response
-
-- Simulate delay (300–800ms) for realism
-
-- Store chat history (in-memory or DB)
-
-#### Swagger:
-- Document all chat endpoints
-- Add request/response examples
-
----
-
-### 6. Frontend Chat Integration
-- Connect chat UI to backend APIs:
-  - Send message → API → show reply
-- Show:
-  - User message
-  - AI response
-- Handle:
-  - Loading state (typing indicator)
-  - Error handling
-
----
-
-### 7. Marketplace Filters (STRICT)
-- Ensure filters work with API:
-  - Category
-  - Provider
-  - Pricing
-  - Rating
-  - License
-
----
-
-### 8. UI Upgrade (Material UI)
-- Upgrade components using Material UI
-- DO NOT disturb layout
-- Improve:
-  - Buttons
-  - Cards
-  - Inputs
-  - Spacing
-- Increase icon sizes slightly (professional standard)
-
----
-
-### 9. Responsiveness
-- Ensure mobile + tablet + desktop support
-
----
-
-### 10. Stability Fixes
-- Fix all `.map()` issues:
-  - Add proper `key`
-  - Null checks
-- Prevent crashes
-
----
-
-### 11. Toast Notifications
-- Add global toast system
-- Trigger for:
-  - Login / Signup
-  - Chat actions
-  - CRUD actions
-  - Errors
-
----
-
-### 12. Missing APIs
-- Identify missing APIs required by frontend
-- Implement them in backend
-- Add to Swagger
-
----
-
-## 📦 FINAL OUTPUT (MANDATORY)
-
-### 1. ✅ Fully Working App Summary
-
-### 2. ✅ Swagger API Endpoints
-- Include Chat APIs
-
-### 3. ✅ Frontend ↔ Backend Mapping
-
-### 4. ✅ Auth Flow Result
-
-### 5. ✅ Chat System Result
-- How dummy AI responses work
-
-### 6. ✅ UI Improvements (Material UI)
-
-### 7. ✅ Run Instructions
-- Backend
-- Frontend
-- Swagger URL
-
-### 8. ✅ Issues Fixed
-- Auth bug
-- Static data removal
-- Map key issues
-- API mismatches
-
----
-
-## ⚠️ RULES
-- No static data allowed
-- No invalid login allowed
-- Keep UI intact
-- Ensure end-to-end working system
-- Follow BE Agent + Integration Agent standards
-
----
-
-Start execution:
-1. Remove static data
-2. Integrate APIs
-3. Fix auth
-4. Add Chat APIs
-5. Enhance Swagger
-6. Upgrade UI
-7. Validate full app
-8. Provide final report
+7. **Output**
+   - Fully working Agents page with new agent creation flow.
+   - Fixed language dropdown and tools drawer with dynamic data.
+   - Landing page fully dynamic.
+   - Ensure no UI crashes, proper navigation, and toast/error handling for all actions.

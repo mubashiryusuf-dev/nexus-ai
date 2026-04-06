@@ -143,6 +143,26 @@ export interface AnalyticsOverview {
   satisfaction: number;
 }
 
+// ─── Tool Catalog ─────────────────────────────────────────────────────────────
+
+export interface ToolConfigField {
+  key: string;
+  label: string;
+  type: "text" | "number" | "boolean";
+  placeholder?: string;
+}
+
+export interface ToolCatalogItem {
+  id: string;
+  label: string;
+  emoji: string;
+  category: string;
+  desc: string;
+  overview: string;
+  steps: string[];
+  config: { fields: ToolConfigField[] };
+}
+
 // ─── Chat (AI responses) ──────────────────────────────────────────────────────
 
 export interface SendMessageDto {

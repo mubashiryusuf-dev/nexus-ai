@@ -31,7 +31,8 @@ import type {
   SendMessageDto,
   SignInDto,
   SignUpDto,
-  SocialSignInDto
+  SocialSignInDto,
+  ToolCatalogItem
 } from "@/types/api";
 
 const API_BASE_URL =
@@ -185,6 +186,14 @@ export const apiClient = {
       "/api/agents/templates",
       dummyAgentTemplates
     );
+  },
+
+  getToolCatalog() {
+    return requestWithFallback<ToolCatalogItem[]>("/api/agents/tools", []);
+  },
+
+  listAgents(token?: string | null) {
+    return requestWithFallback<AgentRecord[]>("/api/agents", [], { token });
   },
 
   createAgent(payload: CreateAgentDto, token?: string | null) {
