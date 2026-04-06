@@ -23,6 +23,13 @@ export class AgentsController {
     return this.agentsService.getTemplates();
   }
 
+  @Get("tools")
+  @ApiOperation({ summary: "Get full tool catalog with overview, steps, and config fields" })
+  @ApiOkResponse({ description: "Tool catalog returned" })
+  getToolCatalog() {
+    return this.agentsService.getToolCatalog();
+  }
+
   @Get()
   @ApiOperation({ summary: "List all agents" })
   @ApiOkResponse({ description: "Agents list returned" })
