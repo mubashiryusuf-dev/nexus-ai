@@ -9,6 +9,7 @@ import { AgentsModule } from "./modules/agents/agents.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
+import { ChatModule } from "./modules/chat/chat.module";
 import { ContentModule } from "./modules/content/content.module";
 import { DiscoveryModule } from "./modules/discovery/discovery.module";
 import { SeedModule } from "./modules/seed/seed.module";
@@ -120,6 +121,7 @@ async function getMongoOptions() {
     AgentsModule,
     AnalyticsModule,
     ContentModule,
+    ChatModule,
     SeedModule
   ]
 })

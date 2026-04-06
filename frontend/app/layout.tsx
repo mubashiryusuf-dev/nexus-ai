@@ -4,6 +4,7 @@ import { Instrument_Sans, Syne } from "next/font/google";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { SiteLanguageProvider } from "@/components/i18n/site-language-provider";
 import { AppHeader } from "@/components/layout/app-header";
+import { ToastProvider } from "@/components/shared/toast-provider";
 
 import "./globals.css";
 
@@ -34,10 +35,12 @@ export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
       >
         <SiteLanguageProvider>
           <AuthProvider>
-            <div className="min-h-screen">
-              <AppHeader />
-              {children}
-            </div>
+            <ToastProvider>
+              <div className="min-h-screen">
+                <AppHeader />
+                {children}
+              </div>
+            </ToastProvider>
           </AuthProvider>
         </SiteLanguageProvider>
       </body>

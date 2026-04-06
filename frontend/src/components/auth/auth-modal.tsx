@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSiteLanguage } from "@/components/i18n/site-language-provider";
+import { useToast } from "@/components/shared/toast-provider";
 
 type AuthMode = "signin" | "signup";
 
@@ -37,6 +38,7 @@ export function AuthModal({
 }: AuthModalProps): React.JSX.Element | null {
   const { signIn, signInWithProvider, signUp } = useAuth();
   const { translateText: t } = useSiteLanguage();
+  const { toast } = useToast();
   const [form, setForm] = useState<Record<string, string>>(initialForm(mode));
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -111,7 +113,9 @@ export function AuthModal({
           email: form.email ?? "",
           password: form.password ?? ""
         });
-        setSuccess("Signed in successfully. You are now using NexusAI as an authenticated user.");
+        const msg = "Signed in successfully. Welcome back!";
+        setSuccess(msg);
+        toast(msg, "success");
       } else {
         await signUp({
           fullName: form.fullName ?? "",
@@ -119,14 +123,18 @@ export function AuthModal({
           password: form.password ?? "",
           confirmPassword: form.confirmPassword ?? ""
         });
-        setSuccess("Account created successfully. You are now using NexusAI as an authenticated user.");
+        const msg = "Account created successfully. Welcome to NexusAI!";
+        setSuccess(msg);
+        toast(msg, "success");
       }
 
       window.setTimeout(() => {
         onClose();
       }, 700);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Something went wrong.");
+      const msg = submitError instanceof Error ? submitError.message : "Something went wrong.";
+      setError(msg);
+      toast(msg, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -327,12 +335,16 @@ export function AuthModal({
 
                         try {
                           await signInWithProvider(provider);
-                          setSuccess(`${provider} sign in completed. You are now authenticated.`);
+                          const msg = `Signed in with ${provider}. Welcome!`;
+                          setSuccess(msg);
+                          toast(msg, "success");
                           window.setTimeout(() => {
                             onClose();
                           }, 700);
                         } catch (submitError) {
-                          setError(submitError instanceof Error ? submitError.message : "Something went wrong.");
+                          const msg = submitError instanceof Error ? submitError.message : "Something went wrong.";
+                          setError(msg);
+                          toast(msg, "error");
                         } finally {
                           setIsSubmitting(false);
                         }

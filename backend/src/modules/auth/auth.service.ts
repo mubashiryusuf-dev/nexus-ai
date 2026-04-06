@@ -4,7 +4,7 @@ import { InjectModel } from "@nestjs/mongoose";
 import * as bcrypt from "bcryptjs";
 import { Model } from "mongoose";
 
-import { CreateGuestSessionDto, SignInDto, SignUpDto } from "./dto/auth.dto";
+import { CreateGuestSessionDto, SignInDto, SignUpDto, SocialSignInDto } from "./dto/auth.dto";
 import { AuthResponseDto, GuestSessionResponseDto } from "./dto/auth-response.dto";
 import { User, UserDocument } from "./schemas/user.schema";
 
@@ -99,6 +99,37 @@ export class AuthService {
         "chat-recommendations"
       ],
       accessToken
+    };
+  }
+
+  async socialSignIn(payload: SocialSignInDto): Promise<AuthResponseDto> {
+    const providerEmail = `${payload.provider.toLowerCase()}.oauth@nexusai.app`;
+    const displayName = payload.displayName ?? `${payload.provider} User`;
+
+    let user = await this.userModel.findOne({ email: providerEmail });
+
+    if (!user) {
+      const passwordHash = await bcrypt.hash(`OAuthProvider_${payload.provider}_2024`, 12);
+      user = await this.userModel.create({
+        fullName: displayName,
+        email: providerEmail,
+        passwordHash,
+        locale: "en"
+      });
+    }
+
+    const tokens = this.buildTokens(String(user._id), user.email, "authenticated");
+
+    return {
+      message: `Signed in with ${payload.provider}`,
+      ...tokens,
+      user: {
+        id: String(user._id),
+        fullName: user.fullName,
+        email: user.email,
+        mode: "authenticated",
+        locale: user.locale
+      }
     };
   }
 

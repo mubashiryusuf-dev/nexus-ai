@@ -127,22 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
   const signInWithProvider = async (
     provider: "Google" | "GitHub" | "Microsoft"
   ): Promise<void> => {
-    const providerEmail = `${provider.toLowerCase()}.user@nexusai.app`;
-    const response = await apiClient.signIn({
-      email: providerEmail,
-      password: "ProviderAuth123"
-    });
-
-    persistSession({
-      accessToken: response.accessToken,
-      refreshToken: response.refreshToken,
-      user: {
-        ...response.user,
-        fullName: `${provider} User`,
-        email: providerEmail
-      },
-      mode: "authenticated"
-    });
+    const response = await apiClient.socialSignIn({ provider });
+    persistSession(mapAuthResponseToSession(response));
   };
 
   const signOut = (): void => {

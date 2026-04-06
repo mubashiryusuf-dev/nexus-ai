@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSiteLanguage } from "@/components/i18n/site-language-provider";
+import { useToast } from "@/components/shared/toast-provider";
 import { apiClient } from "@/lib/api-client";
-import type { AiModelItem, PromptDraft as ApiPromptDraft } from "@/types/api";
+import type { AiModelItem, ChatHistoryItem, PromptDraft as ApiPromptDraft } from "@/types/api";
 import {
   BookIcon,
   ChartIcon,
@@ -224,9 +225,11 @@ export function ChatHubExperience(): JSX.Element {
   const router = useRouter();
   const { token, user, sessionMode } = useAuth();
   const { translateText: t } = useSiteLanguage();
+  const { toast } = useToast();
   const imageInputId = useId();
   const fileInputId = useId();
   const videoInputId = useId();
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const [catalogModels, setCatalogModels] = useState<AiModelItem[]>([]);
   const [activeModel, setActiveModel] = useState(models[0].name);
@@ -243,6 +246,8 @@ export function ChatHubExperience(): JSX.Element {
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [chatMessages, setChatMessages] = useState<ChatHistoryItem[]>([]);
+  const [isAiTyping, setIsAiTyping] = useState(false);
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -444,31 +449,53 @@ export function ChatHubExperience(): JSX.Element {
 
   const handleSend = async (): Promise<void> => {
     const finalPrompt = prompt.trim() || activeSuggestions[0] || "Help me get started";
-    const attachmentSummary = attachments.length ? ` with ${attachments.length} attachment(s)` : "";
-    const agentSummary = agentEnabled ? " using agent mode" : "";
+    if (!finalPrompt) return;
 
-    setStatus(`Prepared "${finalPrompt}" for ${activeModelData.name}${attachmentSummary}${agentSummary}`);
+    const userMsg: ChatHistoryItem = {
+      role: "user",
+      content: finalPrompt,
+      timestamp: new Date().toISOString()
+    };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setPrompt("");
+    setStatus(`Sending to ${activeModelData.name}…`);
+    setIsAiTyping(true);
 
-    if (chatSessionId) {
-      try {
-        await apiClient.appendChatMessage(
-          chatSessionId,
-          { role: "user", content: finalPrompt },
-          token
-        );
-      } catch {
-        setStatus("Message prepared locally; backend chat append is unavailable");
+    try {
+      const res = await apiClient.sendChatMessage({
+        message: finalPrompt,
+        model: activeModelData.name,
+        context: agentEnabled ? "You are a helpful NexusAI assistant." : undefined
+      });
+
+      const assistantMsg: ChatHistoryItem = {
+        role: "assistant",
+        content: res.reply,
+        timestamp: res.timestamp
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+      setStatus("Ready to help");
+
+      // Also append to discovery session for persistence
+      if (chatSessionId) {
+        void apiClient.appendChatMessage(chatSessionId, { role: "user", content: finalPrompt }, token);
+        void apiClient.appendChatMessage(chatSessionId, { role: "assistant", content: res.reply }, token);
       }
-    }
 
-    await addDraftFromPrompt(finalPrompt);
-
-    if ("speechSynthesis" in window && finalPrompt) {
-      const utterance = new SpeechSynthesisUtterance(`Let's go. ${finalPrompt}`);
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
+      await addDraftFromPrompt(finalPrompt);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Chat failed";
+      toast(msg, "error");
+      setStatus("Failed to get response — please try again");
+    } finally {
+      setIsAiTyping(false);
     }
   };
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, isAiTyping]);
 
   const updateDraft = async (
     id: string,
@@ -641,11 +668,54 @@ export function ChatHubExperience(): JSX.Element {
               </div>
             </div>
 
+            {/* ── Live chat message thread ─────────────────── */}
+            {chatMessages.length > 0 && (
+              <div className="mt-5 max-h-[420px] overflow-y-auto rounded-[22px] border border-[#e5ddd3] bg-white px-4 py-4 space-y-4 shadow-[inset_0_2px_8px_rgba(46,32,18,0.03)]">
+                {chatMessages.map((msg, idx) => (
+                  <div
+                    key={`${msg.timestamp}-${idx}`}
+                    className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                  >
+                    {/* Avatar */}
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${msg.role === "user" ? "bg-[#c8622a] text-white" : "bg-[#f4f0ea] text-[#5a5750]"}`}>
+                      {msg.role === "user" ? (user?.fullName?.[0]?.toUpperCase() ?? "U") : "AI"}
+                    </div>
+                    {/* Bubble */}
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-6 ${msg.role === "user" ? "bg-[#c8622a] text-white rounded-tr-sm" : "bg-[#faf7f2] text-[#2c2822] border border-[#e8dfd4] rounded-tl-sm"}`}>
+                      <p style={{ whiteSpace: "pre-wrap" }}>{msg.content}</p>
+                      <p className={`mt-1.5 text-[10px] ${msg.role === "user" ? "text-white/60 text-right" : "text-[#9e9b93]"}`}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {/* Typing indicator */}
+                {isAiTyping && (
+                  <div className="flex gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4f0ea] text-[11px] font-bold text-[#5a5750]">AI</div>
+                    <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-[#e8dfd4] bg-[#faf7f2] px-4 py-3">
+                      <span className="bounce-dot-1 h-2 w-2 rounded-full bg-[#9e9b93]" />
+                      <span className="bounce-dot-2 h-2 w-2 rounded-full bg-[#9e9b93]" />
+                      <span className="bounce-dot-3 h-2 w-2 rounded-full bg-[#9e9b93]" />
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+
             <div className="mt-5 rounded-[22px] border border-[#d8d0c5] bg-[#faf7f2] shadow-[0_14px_34px_rgba(60,34,18,0.08)]">
               <textarea
-                className="min-h-[128px] w-full resize-none border-0 bg-transparent px-4 py-4 text-[1rem] leading-7 text-[#5d544b] outline-none placeholder:text-[#9c9288] sm:px-5"
+                className="min-h-[128px] w-full resize-none border-0 bg-transparent px-4 py-4 text-[1rem] leading-7 text-[#5d544b] outline-none placeholder:text-[#9c9288] sm:px-5 disabled:opacity-60"
+                disabled={isAiTyping}
                 onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Describe your project, ask a question, or just say hi. I&apos;m here to help..."
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey && !isAiTyping) {
+                    event.preventDefault();
+                    void handleSend();
+                  }
+                }}
+                placeholder="Describe your project, ask a question, or just say hi. I'm here to help…"
                 value={prompt}
               />
               <div className="flex flex-col gap-3 border-t border-[#e5ddd3] px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
@@ -751,13 +821,15 @@ export function ChatHubExperience(): JSX.Element {
                     <p className="text-xs text-[#aa9f93]">{selectedAction}</p>
                   </div>
                   <button
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-[#cb682b] text-white"
-                    onClick={() => {
-                      void handleSend();
-                    }}
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-[#cb682b] text-white transition hover:bg-[#a34d1e] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isAiTyping || !prompt.trim()}
+                    onClick={() => { void handleSend(); }}
                     type="button"
+                    title="Send message (Enter)"
                   >
-                    <SendIcon className="h-5 w-5" />
+                    {isAiTyping
+                      ? <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                      : <SendIcon className="h-5 w-5" />}
                   </button>
                 </div>
               </div>

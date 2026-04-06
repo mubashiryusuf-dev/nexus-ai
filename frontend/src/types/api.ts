@@ -1,3 +1,5 @@
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
 export interface AuthUser {
   id: string;
   fullName: string;
@@ -31,6 +33,13 @@ export interface SignUpDto {
   password: string;
 }
 
+export interface SocialSignInDto {
+  provider: "Google" | "GitHub" | "Microsoft";
+  displayName?: string;
+}
+
+// ─── Catalog ──────────────────────────────────────────────────────────────────
+
 export interface ProviderItem {
   _id?: string;
   name: string;
@@ -63,6 +72,8 @@ export interface CatalogQuery {
   license?: string;
 }
 
+// ─── Content ──────────────────────────────────────────────────────────────────
+
 export interface ResearchItem {
   _id?: string;
   title: string;
@@ -71,6 +82,8 @@ export interface ResearchItem {
   excerpt: string;
   createdAt?: string;
 }
+
+// ─── Agents ───────────────────────────────────────────────────────────────────
 
 export interface AgentTemplate {
   _id?: string;
@@ -96,6 +109,8 @@ export interface CreateAgentDto {
   tools: string[];
 }
 
+// ─── Discovery ────────────────────────────────────────────────────────────────
+
 export interface OnboardingProfile {
   _id?: string;
   userRef: string;
@@ -118,10 +133,32 @@ export interface PromptDraft {
   status: "draft" | "ready" | "queued";
 }
 
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
 export interface AnalyticsOverview {
   activeModelPanel: string;
   requests: number;
   latencyMs: number;
   dailyCost: number;
   satisfaction: number;
+}
+
+// ─── Chat (AI responses) ──────────────────────────────────────────────────────
+
+export interface SendMessageDto {
+  message: string;
+  model?: string;
+  context?: string;
+}
+
+export interface ChatMessageResponse {
+  success: boolean;
+  reply: string;
+  timestamp: string;
+}
+
+export interface ChatHistoryItem {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
 }

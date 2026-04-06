@@ -10,7 +10,7 @@ import {
 
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { AuthService } from "./auth.service";
-import { CreateGuestSessionDto, SignInDto, SignUpDto } from "./dto/auth.dto";
+import { CreateGuestSessionDto, SignInDto, SignUpDto, SocialSignInDto } from "./dto/auth.dto";
 import { AuthResponseDto, GuestSessionResponseDto } from "./dto/auth-response.dto";
 
 @ApiTags("auth")
@@ -30,6 +30,13 @@ export class AuthController {
   @ApiOkResponse({ description: "User authenticated", type: AuthResponseDto })
   signIn(@Body() payload: SignInDto): Promise<AuthResponseDto> {
     return this.authService.signIn(payload);
+  }
+
+  @Post("social-sign-in")
+  @ApiOperation({ summary: "Sign in or auto-register via OAuth provider (Google, GitHub, Microsoft)" })
+  @ApiOkResponse({ description: "OAuth user authenticated", type: AuthResponseDto })
+  socialSignIn(@Body() payload: SocialSignInDto): Promise<AuthResponseDto> {
+    return this.authService.socialSignIn(payload);
   }
 
   @Post("guest-session")

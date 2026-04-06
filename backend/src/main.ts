@@ -39,6 +39,7 @@ async function bootstrap(): Promise<void> {
     .addTag("catalog", "AI model catalog, providers, comparisons, reviews")
     .addTag("agents", "Agent builder — CRUD, templates, wizard steps")
     .addTag("analytics", "Dashboard metrics and usage data")
+    .addTag("chat", "Chat — send messages, retrieve history, clear session")
     .addTag("content", "Research feed, localization, digest subscriptions")
     .build();
 

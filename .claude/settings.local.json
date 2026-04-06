@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(sed 's/class=\"//g')"
+      "Bash(sed 's/class=\"//g')",
+      "Bash(cmd /c \"dir /b d:\\\\nexus-ai\\\\frontend\\\\src\\\\app\")",
+      "Bash(cmd /c \"dir d:\\\\nexus-ai\\\\frontend\\\\src\\\\app 2>&1\")",
+      "Bash(cmd /c \"dir /s /b d:\\\\nexus-ai\\\\frontend\\\\src\\\\app\\\\layout.tsx\")",
+      "Bash(cmd /c \"dir /s /b d:\\\\nexus-ai\\\\frontend\\\\src\\\\app\")",
+      "Bash(cmd /c \"dir d:\\\\nexus-ai\\\\frontend\")",
+      "Bash(dir frontend:*)",
+      "Bash(dir frontend\\\\src\\\\app)"
     ]
   }
 }
