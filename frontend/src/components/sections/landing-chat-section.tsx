@@ -1,15 +1,18 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { useSiteLanguage } from "@/components/i18n/site-language-provider";
 
 type SuggestionTab = "Recruiting" | "Create a prototype" | "Build a business" | "Help me learn" | "Research";
-type AttachmentKind = "image" | "file" | "video";
+type AttachmentKind = "image" | "file" | "video" | "voice";
 
 interface AttachmentItem {
   kind: AttachmentKind;
   name: string;
+  url?: string;
+  mimeType?: string;
 }
 
 interface BrowserSpeechRecognition extends EventTarget {
@@ -230,18 +233,25 @@ function iconWrapper(icon: string): JSX.Element {
 }
 
 export function LandingChatSection(): JSX.Element {
+  const router = useRouter();
   const { translateText: t } = useSiteLanguage();
   const [activeTab, setActiveTab] = useState<SuggestionTab>("Recruiting");
   const [prompt, setPrompt] = useState("");
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
+  const [webcamActive, setWebcamActive] = useState(false);
+  const [recordingVoiceNote, setRecordingVoiceNote] = useState(false);
   const [status, setStatus] = useState("Ready to help");
   const [listening, setListening] = useState(false);
   const imageInputId = useId();
   const fileInputId = useId();
-  const videoInputId = useId();
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const webcamStreamRef = useRef<MediaStream | null>(null);
   const activeItems = tabs.find((tab) => tab.name === activeTab)?.items ?? [];
 
   const handleAttach = (kind: AttachmentKind, fileList: FileList | null): void => {
@@ -256,6 +266,15 @@ export function LandingChatSection(): JSX.Element {
 
     setAttachments((current) => [...current, ...nextFiles]);
     setStatus(`${nextFiles.length} ${kind} attachment${nextFiles.length > 1 ? "s" : ""} added`);
+  };
+
+  const stopVoiceRecorder = (): void => {
+    mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+    voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaRecorderRef.current = null;
+    voiceStreamRef.current = null;
+    voiceChunksRef.current = [];
+    setRecordingVoiceNote(false);
   };
 
   const startRecognition = (mode: "voice" | "dictate"): void => {
@@ -296,6 +315,66 @@ export function LandingChatSection(): JSX.Element {
     setStatus(mode === "voice" ? "Listening for voice conversation..." : "Listening for dictation...");
   };
 
+  const handleVoiceNoteToggle = async (): Promise<void> => {
+    if (recordingVoiceNote) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus("Voice notes are not supported in this browser");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false
+      });
+
+      const mediaRecorder = new MediaRecorder(stream);
+      voiceStreamRef.current = stream;
+      mediaRecorderRef.current = mediaRecorder;
+      voiceChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          voiceChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const mimeType = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(voiceChunksRef.current, { type: mimeType });
+
+        if (blob.size > 0) {
+          const voiceNote: AttachmentItem = {
+            kind: "voice",
+            name: `voice-note-${Date.now()}.webm`,
+            url: URL.createObjectURL(blob),
+            mimeType
+          };
+
+          setAttachments((current) => [...current, voiceNote]);
+          setStatus("Voice note attached");
+        }
+
+        stopVoiceRecorder();
+      };
+
+      mediaRecorder.onerror = () => {
+        setStatus("Voice note recording failed");
+        stopVoiceRecorder();
+      };
+
+      mediaRecorder.start();
+      setRecordingVoiceNote(true);
+      setStatus("Recording voice note...");
+    } catch {
+      setStatus("Microphone permission was denied or is unavailable");
+    }
+  };
+
   const handleScreenShare = async (): Promise<void> => {
     if (screenSharing) {
       setScreenSharing(false);
@@ -323,20 +402,74 @@ export function LandingChatSection(): JSX.Element {
     }
   };
 
-  const handleSend = (): void => {
-    const finalPrompt = prompt.trim() || activeItems[0]?.label || "Help me get started";
-    const attachmentSummary = attachments.length ? ` with ${attachments.length} attachment(s)` : "";
-    const agentSummary = agentEnabled ? " using agent mode" : "";
-    const message = `Launching "${finalPrompt}"${attachmentSummary}${agentSummary}`;
+  const stopWebcamStream = (): void => {
+    webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
+    webcamStreamRef.current = null;
+    setWebcamActive(false);
+  };
 
-    setStatus(message);
+  const handleWebcamToggle = async (): Promise<void> => {
+    if (webcamActive) {
+      stopWebcamStream();
+      setStatus("Webcam stopped");
+      return;
+    }
 
-    if ("speechSynthesis" in window && finalPrompt) {
-      const utterance = new SpeechSynthesisUtterance(`Let's go. ${finalPrompt}`);
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus("Webcam is not supported in this browser");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false
+      });
+
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          webcamStreamRef.current = null;
+          setWebcamActive(false);
+          setStatus("Webcam stopped");
+        };
+      });
+
+      webcamStreamRef.current = stream;
+      setWebcamActive(true);
+      setStatus("Webcam started");
+    } catch {
+      setStatus("Webcam permission was denied or is unavailable");
     }
   };
+
+  const handleSend = (): void => {
+    const hasVoiceNote = attachments.some((item) => item.kind === "voice");
+    const finalPrompt =
+      prompt.trim() || (hasVoiceNote ? "Voice note attached" : activeItems[0]?.label || "Help me get started");
+
+    setStatus(`Opening Chat Hub with "${finalPrompt}"`);
+    router.push(`/chat-hub?prompt=${encodeURIComponent(finalPrompt)}`);
+  };
+
+  useEffect(() => {
+    if (!videoPreviewRef.current) {
+      return;
+    }
+
+    videoPreviewRef.current.srcObject = webcamStreamRef.current;
+  }, [webcamActive]);
+
+  useEffect(() => {
+    return () => {
+      [...attachments].forEach((item) => {
+        if (item.kind === "voice" && item.url) {
+          URL.revokeObjectURL(item.url);
+        }
+      });
+      stopVoiceRecorder();
+      stopWebcamStream();
+    };
+  }, [attachments]);
 
   return (
     <div className="mx-auto mt-10 max-w-[980px]">
@@ -400,16 +533,16 @@ export function LandingChatSection(): JSX.Element {
 
                 if (action.kind === "video") {
                   return (
-                    <label key={action.kind} className={`${commonClasses} cursor-pointer`}>
-                      <ActionIcon kind={action.kind} />
-                      <input
-                        accept="video/*"
-                        className="hidden"
-                        id={videoInputId}
-                        onChange={(event) => handleAttach("video", event.target.files)}
-                        type="file"
-                      />
-                    </label>
+                    <button
+                      key={action.kind}
+                      className={commonClasses}
+                      onClick={() => {
+                        void handleWebcamToggle();
+                      }}
+                      type="button"
+                    >
+                      {webcamActive ? "On" : <ActionIcon kind={action.kind} />}
+                    </button>
                   );
                 }
 
@@ -432,10 +565,19 @@ export function LandingChatSection(): JSX.Element {
                   <button
                     key={action.kind}
                     className={commonClasses}
-                    onClick={() => startRecognition(action.kind === "voice" ? "voice" : "dictate")}
+                    onClick={() => {
+                      if (action.kind === "voice") {
+                        void handleVoiceNoteToggle();
+                        return;
+                      }
+
+                      startRecognition("dictate");
+                    }}
                     type="button"
                   >
-                    {listening && action.kind !== "dictate" ? "..." : <ActionIcon kind={action.kind} />}
+                    {action.kind === "voice"
+                      ? (recordingVoiceNote ? "..." : <ActionIcon kind={action.kind} />)
+                      : (listening ? "..." : <ActionIcon kind={action.kind} />)}
                   </button>
                 );
               })}
@@ -465,6 +607,7 @@ export function LandingChatSection(): JSX.Element {
 
             <button
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#d9773a] px-6 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(217,119,58,0.28)]"
+              disabled={!prompt.trim() && attachments.length === 0}
               onClick={handleSend}
               type="button"
             >
@@ -476,14 +619,40 @@ export function LandingChatSection(): JSX.Element {
             </button>
           </div>
 
-          {(attachments.length > 0 || screenSharing || status) && (
-            <div className="flex flex-wrap items-center gap-2 border-t border-[#f1e8de] pt-3">
+          {(attachments.length > 0 || screenSharing || webcamActive || recordingVoiceNote || status) && (
+            <div className="border-t border-[#f1e8de] pt-3">
+              {webcamActive ? (
+                <div className="mb-3 overflow-hidden rounded-[18px] border border-[#f0d6d6] bg-[#fff6f6] p-2">
+                  <video
+                    ref={videoPreviewRef}
+                    autoPlay
+                    className="h-40 w-full rounded-[14px] bg-[#1c1a16] object-cover"
+                    muted
+                    playsInline
+                  />
+                </div>
+              ) : null}
+              {attachments.some((item) => item.kind === "voice" && item.url) ? (
+                <div className="mb-3 space-y-2">
+                  {attachments
+                    .filter((item) => item.kind === "voice" && item.url)
+                    .map((item) => (
+                      <audio
+                        key={`${item.name}-${item.url}`}
+                        controls
+                        className="w-full"
+                        src={item.url}
+                      />
+                    ))}
+                </div>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
               {attachments.map((item) => (
                 <span
                   key={`${item.kind}-${item.name}`}
                   className="rounded-full bg-[#f6f1ea] px-3 py-1 text-xs text-[#645c54]"
                 >
-                  {item.kind}: {item.name}
+                  {item.kind === "voice" ? "voice note attached" : `${item.kind}: ${item.name}`}
                 </span>
               ))}
               {screenSharing ? (
@@ -491,9 +660,20 @@ export function LandingChatSection(): JSX.Element {
                   Screen sharing active
                 </span>
               ) : null}
+              {webcamActive ? (
+                <span className="rounded-full bg-[#fff1f2] px-3 py-1 text-xs text-[#be123c]">
+                  Webcam active
+                </span>
+              ) : null}
+              {recordingVoiceNote ? (
+                <span className="rounded-full bg-[#f7f1ff] px-3 py-1 text-xs text-[#7c3aed]">
+                  Recording voice note
+                </span>
+              ) : null}
               <span className="rounded-full bg-[#fbf7f2] px-3 py-1 text-xs text-[#8a8177]">
                 {status}
               </span>
+              </div>
             </div>
           )}
         </div>

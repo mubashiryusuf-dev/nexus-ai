@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { LandingChatSection } from "@/components/sections/landing-chat-section";
 import {
@@ -82,6 +83,41 @@ function SectionTitle({
 }
 
 export default function HomePage(): JSX.Element {
+  const router = useRouter();
+
+  const buildQuickActionPrompt = (label: string): string => {
+    switch (label) {
+      case "Create image":
+        return "Create a high-quality image concept for my project and suggest the best prompt to generate it.";
+      case "Generate audio":
+        return "Help me generate professional audio for my project, including script, tone, and production guidance.";
+      case "Create video":
+        return "Help me create a professional video concept with script, scenes, and production guidance.";
+      case "Create slides":
+        return "Create a polished slide deck outline with talking points for my topic.";
+      case "Create infographic":
+        return "Turn my topic into a clear infographic structure with key sections and visual hierarchy.";
+      case "Create quiz":
+        return "Create a professional quiz on my topic with questions, answers, and difficulty levels.";
+      case "Create flashcards":
+        return "Create useful flashcards from my topic for fast learning and revision.";
+      case "Mind map":
+        return "Build a structured mind map for my topic with main branches and supporting ideas.";
+      case "Analyze data":
+        return "Help me analyze data, identify trends, and explain the key insights clearly.";
+      case "Write content":
+        return "Write professional content for my topic with a clear structure, tone, and strong messaging.";
+      case "Code generation":
+        return "Help me generate production-ready code for my use case and explain the implementation.";
+      case "Doc analysis":
+        return "Analyze my document and extract the most important points, risks, and next steps.";
+      case "Translate":
+        return "Translate my content accurately while keeping the tone natural and professional.";
+      default:
+        return "Help me explore what I can build or create with AI for my goal.";
+    }
+  };
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#f6f1ea] text-[#26231f]">
 
@@ -158,6 +194,9 @@ export default function HomePage(): JSX.Element {
                 <button
                   key={action.label}
                   className="card-hover flex flex-col items-center gap-1.5 rounded-2xl border border-[#e8dfd4] bg-white/90 px-2 py-3 text-center shadow-[0_4px_12px_rgba(46,32,18,0.04)] transition hover:border-[#c8622a]/40 lg:min-w-[80px] lg:px-3"
+                  onClick={() => {
+                    router.push(`/chat-hub?prompt=${encodeURIComponent(buildQuickActionPrompt(action.label))}`);
+                  }}
                   style={{ animationDelay: `${i * 40}ms` }}
                   type="button"
                 >

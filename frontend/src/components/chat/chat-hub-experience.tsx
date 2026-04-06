@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { useSiteLanguage } from "@/components/i18n/site-language-provider";
@@ -229,6 +229,7 @@ function SideSection({
 
 export function ChatHubExperience(): JSX.Element {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { token, user, sessionMode } = useAuth();
   const { translateText: t } = useSiteLanguage();
   const { toast } = useToast();
@@ -260,6 +261,7 @@ export function ChatHubExperience(): JSX.Element {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [chatMessages, setChatMessages] = useState<ChatMessageView[]>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
+  const initialPromptAppliedRef = useRef(false);
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -279,6 +281,19 @@ export function ChatHubExperience(): JSX.Element {
 
     void load();
   }, []);
+
+  useEffect(() => {
+    if (initialPromptAppliedRef.current) {
+      return;
+    }
+
+    const incomingPrompt = searchParams.get("prompt");
+    if (incomingPrompt) {
+      setPrompt(incomingPrompt);
+      setStatus("Prompt added from the previous page");
+      initialPromptAppliedRef.current = true;
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const bootstrapChat = async (): Promise<void> => {
