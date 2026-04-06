@@ -18,6 +18,10 @@ export class AgentsService {
     return this.templateModel.find().sort({ name: 1 }).lean();
   }
 
+  listAgents() {
+    return this.agentModel.find().sort({ createdAt: -1 }).lean();
+  }
+
   createAgent(payload: CreateAgentDto) {
     return this.agentModel.create({
       ...payload,
@@ -35,5 +39,10 @@ export class AgentsService {
     const agent = await this.agentModel.findByIdAndUpdate(id, payload, { new: true }).lean();
     if (!agent) throw new NotFoundException("Agent not found");
     return agent;
+  }
+
+  async deleteAgent(id: string): Promise<void> {
+    const result = await this.agentModel.findByIdAndDelete(id);
+    if (!result) throw new NotFoundException("Agent not found");
   }
 }

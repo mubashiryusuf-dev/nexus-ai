@@ -1,5 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from "@nestjs/common";
+import {
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags
+} from "@nestjs/swagger";
 
 import { AgentsService } from "./agents.service";
 import { CreateAgentDto, UpdateAgentDto } from "./dto/agents.dto";
@@ -16,6 +23,13 @@ export class AgentsController {
     return this.agentsService.getTemplates();
   }
 
+  @Get()
+  @ApiOperation({ summary: "List all agents" })
+  @ApiOkResponse({ description: "Agents list returned" })
+  listAgents() {
+    return this.agentsService.listAgents();
+  }
+
   @Post()
   @ApiOperation({ summary: "Create a new agent from template or scratch" })
   @ApiCreatedResponse({ description: "Agent created" })
@@ -26,6 +40,7 @@ export class AgentsController {
   @Get(":id")
   @ApiOperation({ summary: "Get agent details" })
   @ApiOkResponse({ description: "Agent returned" })
+  @ApiNotFoundResponse({ description: "Agent not found" })
   getAgent(@Param("id") id: string) {
     return this.agentsService.getAgent(id);
   }
@@ -33,7 +48,17 @@ export class AgentsController {
   @Patch(":id")
   @ApiOperation({ summary: "Update agent tools, instructions, or config" })
   @ApiOkResponse({ description: "Agent updated" })
+  @ApiNotFoundResponse({ description: "Agent not found" })
   updateAgent(@Param("id") id: string, @Body() payload: UpdateAgentDto) {
     return this.agentsService.updateAgent(id, payload);
+  }
+
+  @Delete(":id")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: "Delete an agent" })
+  @ApiNoContentResponse({ description: "Agent deleted" })
+  @ApiNotFoundResponse({ description: "Agent not found" })
+  deleteAgent(@Param("id") id: string) {
+    return this.agentsService.deleteAgent(id);
   }
 }

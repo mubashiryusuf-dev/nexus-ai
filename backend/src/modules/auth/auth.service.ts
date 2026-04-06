@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { InjectModel } from "@nestjs/mongoose";
+import * as bcrypt from "bcryptjs";
 import { Model } from "mongoose";
 
 import { CreateGuestSessionDto, SignInDto, SignUpDto } from "./dto/auth.dto";
@@ -26,10 +27,17 @@ export class AuthService {
   }
 
   async signUp(payload: SignUpDto): Promise<AuthResponseDto> {
+    const existing = await this.userModel.findOne({ email: payload.email });
+    if (existing) {
+      throw new ConflictException("User already exists");
+    }
+
+    const passwordHash = await bcrypt.hash(payload.password, 12);
+
     const user = await this.userModel.create({
       fullName: payload.fullName,
       email: payload.email,
-      passwordHash: `hashed:${payload.password}`,
+      passwordHash,
       locale: "en"
     });
 
@@ -49,15 +57,15 @@ export class AuthService {
   }
 
   async signIn(payload: SignInDto): Promise<AuthResponseDto> {
-    let user = await this.userModel.findOne({ email: payload.email });
+    const user = await this.userModel.findOne({ email: payload.email });
 
     if (!user) {
-      user = await this.userModel.create({
-        fullName: payload.email.split("@")[0],
-        email: payload.email,
-        passwordHash: `hashed:${payload.password}`,
-        locale: "en"
-      });
+      throw new UnauthorizedException("Invalid email or password");
+    }
+
+    const passwordMatch = await bcrypt.compare(payload.password, user.passwordHash);
+    if (!passwordMatch) {
+      throw new UnauthorizedException("Invalid email or password");
     }
 
     const tokens = this.buildTokens(String(user._id), user.email, "authenticated");
