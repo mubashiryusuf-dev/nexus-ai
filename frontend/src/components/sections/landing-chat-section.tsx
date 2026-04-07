@@ -244,7 +244,6 @@ export function LandingChatSection(): JSX.Element {
   const [activeTab, setActiveTab] = useState<SuggestionTab>("Recruiting");
   const [prompt, setPrompt] = useState("");
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
-  const [agentEnabled, setAgentEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [webcamActive, setWebcamActive] = useState(false);
   const [recordingVoiceNote, setRecordingVoiceNote] = useState(false);
@@ -263,6 +262,125 @@ export function LandingChatSection(): JSX.Element {
   const webcamStreamRef = useRef<MediaStream | null>(null);
   const [savedScreenRecording, setSavedScreenRecording] = useState<SavedScreenRecording | null>(null);
   const activeItems = tabs.find((tab) => tab.name === activeTab)?.items ?? [];
+
+  // ── Inline Onboarding State ─────────────────────────────────────────────────
+  const [onboardingPhase, setOnboardingPhase] = useState<0 | 1 | 2 | 3>(1);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingAnswers, setOnboardingAnswers] = useState<string[]>([]);
+  const [preparingQuestions, setPreparingQuestions] = useState(false);
+  const [buildingPrompt, setBuildingPrompt] = useState(false);
+  const [prepareProgress, setPrepareProgress] = useState(0);
+  const [buildProgress, setBuildProgress] = useState(0);
+
+  const onboardingQuestions = [
+    {
+      question: "What would you like to achieve?",
+      emoji: "🎯",
+      options: [
+        { label: "Build a product", emoji: "🚀" },
+        { label: "Learn something", emoji: "📚" },
+        { label: "Research a topic", emoji: "🔬" },
+        { label: "Create content", emoji: "✍️" },
+        { label: "Automate workflows", emoji: "⚙️" },
+        { label: "Just explore", emoji: "🧭" }
+      ]
+    },
+    {
+      question: "Who is this for?",
+      emoji: "👥",
+      options: [
+        { label: "Just me", emoji: "🙋" },
+        { label: "My team", emoji: "👨‍💼" },
+        { label: "My customers", emoji: "🛍️" },
+        { label: "A startup", emoji: "🌱" },
+        { label: "An enterprise", emoji: "🏢" },
+        { label: "Still figuring out", emoji: "🤔" }
+      ]
+    },
+    {
+      question: "Your AI experience level?",
+      emoji: "⚡",
+      options: [
+        { label: "Brand new", emoji: "🐣" },
+        { label: "Some experience", emoji: "🌱" },
+        { label: "Comfortable", emoji: "😎" },
+        { label: "Advanced", emoji: "🔥" },
+        { label: "Developer", emoji: "💻" },
+        { label: "Expert", emoji: "🏆" }
+      ]
+    },
+    {
+      question: "What's your budget range?",
+      emoji: "💰",
+      options: [
+        { label: "Free only", emoji: "🆓" },
+        { label: "Under $50/mo", emoji: "💵" },
+        { label: "$50–200/mo", emoji: "💳" },
+        { label: "$200+/mo", emoji: "💎" },
+        { label: "Unlimited", emoji: "♾️" },
+        { label: "Not sure yet", emoji: "🤷" }
+      ]
+    }
+  ] as const;
+
+  const handleStartOnboarding = (): void => {
+    setPreparingQuestions(true);
+    setPrepareProgress(0);
+    // Animate progress bar to 100% over 1.4s then move to phase 2
+    const start = Date.now();
+    const tick = (): void => {
+      const elapsed = Date.now() - start;
+      const pct = Math.min(100, Math.round((elapsed / 1400) * 100));
+      setPrepareProgress(pct);
+      if (pct < 100) {
+        requestAnimationFrame(tick);
+      } else {
+        window.setTimeout(() => {
+          setPreparingQuestions(false);
+          setOnboardingPhase(2);
+          setOnboardingStep(0);
+        }, 200);
+      }
+    };
+    requestAnimationFrame(tick);
+  };
+
+  const handleOnboardingAnswer = (answer: string): void => {
+    const next = [...onboardingAnswers, answer];
+    setOnboardingAnswers(next);
+    if (onboardingStep < onboardingQuestions.length - 1) {
+      setOnboardingStep((s) => s + 1);
+    } else {
+      // All answered — phase 3: build prompt
+      setOnboardingPhase(3);
+      setBuildingPrompt(true);
+      setBuildProgress(0);
+      const builtPrompt = `Goal: ${next[0] ?? ""} | Audience: ${next[1] ?? ""} | Skill: ${next[2] ?? ""} | Budget: ${next[3] ?? ""}`;
+      const start = Date.now();
+      const tick = (): void => {
+        const elapsed = Date.now() - start;
+        const pct = Math.min(100, Math.round((elapsed / 1600) * 100));
+        setBuildProgress(pct);
+        if (pct < 100) {
+          requestAnimationFrame(tick);
+        } else {
+          window.setTimeout(() => {
+            setBuildingPrompt(false);
+            router.push(`/chat-hub?prompt=${encodeURIComponent(builtPrompt)}`);
+          }, 300);
+        }
+      };
+      requestAnimationFrame(tick);
+    }
+  };
+
+  const handleSkipOnboarding = (): void => {
+    setOnboardingPhase(0);
+    setOnboardingAnswers([]);
+    setOnboardingStep(0);
+    setPreparingQuestions(false);
+    setBuildingPrompt(false);
+  };
 
   const handleClearInput = (): void => {
     setPrompt("");
@@ -532,6 +650,13 @@ export function LandingChatSection(): JSX.Element {
     router.push(`/chat-hub?prompt=${encodeURIComponent(finalPrompt)}`);
   };
 
+  const handleAgentClick = (): void => {
+    const destination = prompt.trim()
+      ? `/agents?prompt=${encodeURIComponent(prompt.trim())}`
+      : "/agents";
+    router.push(destination);
+  };
+
   useEffect(() => {
     if (!videoPreviewRef.current) {
       return;
@@ -684,25 +809,19 @@ export function LandingChatSection(): JSX.Element {
               })}
 
               <button
-                className={`inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition ${
-                  agentEnabled
-                    ? "border-[#cdc5bb] bg-[#efece6] text-[#4f473f]"
-                    : "border-[#e5ddd3] bg-white text-[#82796f]"
-                }`}
-                onClick={() => {
-                  setAgentEnabled((value) => !value);
-                  setStatus(!agentEnabled ? "Agent mode enabled" : "Agent mode disabled");
-                }}
+                className="group inline-flex h-11 items-center gap-2 rounded-full border border-[#c8622a]/30 bg-gradient-to-r from-[#fff4ee] to-[#fdebd8] px-4 text-sm font-semibold text-[#c8622a] shadow-[0_4px_12px_rgba(200,98,42,0.12)] transition hover:border-[#c8622a]/60 hover:shadow-[0_6px_18px_rgba(200,98,42,0.22)]"
+                onClick={handleAgentClick}
+                title={prompt.trim() ? `Open agents with: "${prompt.trim()}"` : "Go to Agents"}
                 type="button"
               >
-                <svg className="h-[14px] w-[14px] stroke-current" fill="none" viewBox="0 0 24 24">
+                <svg className="h-[14px] w-[14px] shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
                   <rect height="8" rx="2" strokeWidth="1.8" width="12" x="6" y="7" />
                   <path d="M10 15v2m4-2v2M9 19h6" strokeLinecap="round" strokeWidth="1.8" />
                 </svg>
                 <span>Agent</span>
-                <span className="rounded-full bg-[#d9d5ce] px-2 py-0.5 text-[11px]">
-                  {agentEnabled ? "+" : "•"}
-                </span>
+                <svg className="h-3 w-3 shrink-0 stroke-current opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100" fill="none" viewBox="0 0 24 24">
+                  <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                </svg>
               </button>
             </div>
 
@@ -802,52 +921,224 @@ export function LandingChatSection(): JSX.Element {
         </div>
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-[26px] border border-[#ddd4ca] bg-white shadow-[0_16px_40px_rgba(46,32,18,0.08)]">
-        <div className="flex flex-wrap items-center gap-2 border-b border-[#ece3d7] px-4 py-3 sm:px-5">
-          {tabs.map((tab) => {
-            const isActive = tab.name === activeTab;
+      {/* ── Inline Onboarding Panel ────────────────────────────────────────── */}
+      {onboardingPhase >= 1 && (
+        <div className="mt-5 overflow-hidden rounded-[26px] border border-[#ddd4ca] bg-white shadow-[0_16px_40px_rgba(46,32,18,0.08)]">
 
-            return (
-              <button
-                key={tab.name}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
-                  isActive
-                    ? "border-[#d9d1c7] bg-[#faf7f2] text-[#2f2a24]"
-                    : "border-transparent text-[#6f675f] hover:text-[#2f2a24]"
-                }`}
-                onClick={() => setActiveTab(tab.name)}
-                type="button"
-              >
-                <TabIcon tab={tab.name} />
-                {tab.name}
-              </button>
-            );
-          })}
+          {/* Phase 1 — Welcome ──────────────────────────────────────────────── */}
+          {onboardingPhase === 1 && (
+            <div className="px-6 py-8 text-center sm:px-10">
+              {/* Emoji decoration */}
+              <div className="flex items-center justify-center gap-3 text-3xl">
+                <span className="animate-pulse">✨</span>
+                <span>🤝</span>
+                <span className="animate-pulse">✨</span>
+              </div>
+
+              {/* Title */}
+              <h3 className="mt-5 text-[1.35rem] font-bold tracking-[-0.03em] text-[#1c1a16]">
+                Welcome! You&apos;re in the right place.
+              </h3>
+
+              {/* Subtitle */}
+              <p className="mx-auto mt-3 max-w-[560px] text-sm leading-7 text-[#6b6259]">
+                You&apos;re in a place where AI can help you explore ideas, solve problems, and create things faster — even if you&apos;ve never used AI before.
+              </p>
+
+              {/* Feature bullets */}
+              <div className="mx-auto mt-7 max-w-[540px] space-y-3 text-left">
+                {[
+                  { icon: "🧩", text: "No tech knowledge needed — we'll explain everything in plain language" },
+                  { icon: "💬", text: "Just answer a few simple questions about what you'd like to do" },
+                  { icon: "🚀", text: "We'll build your first AI request together — step by step" }
+                ].map((item) => (
+                  <div key={item.text} className="flex items-start gap-3 rounded-xl border border-[#f0e8de] bg-[#fdfaf6] px-4 py-3">
+                    <span className="mt-0.5 shrink-0 text-base">{item.icon}</span>
+                    <p className="text-sm leading-6 text-[#4a4540]">{item.text}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Progress bar — shown while preparing */}
+              {preparingQuestions && (
+                <div className="mx-auto mt-7 max-w-[360px]">
+                  <p className="mb-2 text-xs font-medium text-[#9e9b93]">Preparing your questions...</p>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#ede5da]">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#d9773a] to-[#c8622a] transition-all duration-100"
+                      style={{ width: `${prepareProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* CTA buttons */}
+              {!preparingQuestions && (
+                <div className="mt-7 flex flex-col items-center gap-3">
+                  <button
+                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#d9773a] to-[#c8622a] px-8 py-3.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(200,98,42,0.32)] transition hover:shadow-[0_12px_30px_rgba(200,98,42,0.42)]"
+                    onClick={handleStartOnboarding}
+                    type="button"
+                  >
+                    <span>✨</span>
+                    Let&apos;s get started
+                  </button>
+                  <button
+                    className="text-xs text-[#9e9b93] underline-offset-2 transition hover:text-[#5a5750] hover:underline"
+                    onClick={handleSkipOnboarding}
+                    type="button"
+                  >
+                    Skip — search directly
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Phase 2 — Question flow ────────────────────────────────────────── */}
+          {onboardingPhase === 2 && (
+            <div className="px-5 py-7 sm:px-8">
+              {/* Progress dots */}
+              <div className="flex items-center justify-center gap-2">
+                {onboardingQuestions.map((_, idx) => (
+                  <span
+                    key={idx}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      idx < onboardingStep
+                        ? "w-6 bg-[#c8622a]"
+                        : idx === onboardingStep
+                          ? "w-6 bg-[#c8622a]"
+                          : "w-2 bg-[#ddd4ca]"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Question */}
+              <div className="mt-6 text-center">
+                <span className="text-3xl">{onboardingQuestions[onboardingStep]?.emoji}</span>
+                <h3 className="mt-3 text-lg font-bold tracking-[-0.03em] text-[#1c1a16]">
+                  {onboardingQuestions[onboardingStep]?.question}
+                </h3>
+                <p className="mt-1.5 text-xs text-[#9e9b93]">
+                  Question {onboardingStep + 1} of {onboardingQuestions.length}
+                </p>
+              </div>
+
+              {/* Options grid */}
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {onboardingQuestions[onboardingStep]?.options.map((option) => (
+                  <button
+                    key={option.label}
+                    className="flex flex-col items-center gap-2 rounded-2xl border border-[#e8dfd4] bg-[#fdfaf6] px-3 py-4 text-center transition hover:border-[#c8622a]/40 hover:bg-[#fff8f3] hover:shadow-[0_4px_14px_rgba(200,98,42,0.12)] active:scale-[0.97]"
+                    onClick={() => handleOnboardingAnswer(option.label)}
+                    type="button"
+                  >
+                    <span className="text-2xl">{option.emoji}</span>
+                    <span className="text-xs font-medium leading-4 text-[#3a3229]">{option.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Skip */}
+              <div className="mt-5 text-center">
+                <button
+                  className="text-xs text-[#b0a89e] underline-offset-2 hover:text-[#7b736b] hover:underline"
+                  onClick={handleSkipOnboarding}
+                  type="button"
+                >
+                  Skip onboarding
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Phase 3 — Building prompt ──────────────────────────────────────── */}
+          {onboardingPhase === 3 && (
+            <div className="flex flex-col items-center px-6 py-12 text-center">
+              <div className="relative flex h-16 w-16 items-center justify-center">
+                {/* Spinning ring */}
+                <span className="absolute inset-0 rounded-full border-4 border-[#f0e8de] border-t-[#c8622a] animate-spin" />
+                <span className="text-2xl">✨</span>
+              </div>
+              <h3 className="mt-5 text-lg font-bold tracking-[-0.03em] text-[#1c1a16]">
+                Building your personalised prompt…
+              </h3>
+              <p className="mt-2 text-sm text-[#9e9b93]">
+                Tailored to your goals, audience, and budget
+              </p>
+              <div className="mx-auto mt-6 w-full max-w-[340px]">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#ede5da]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#d9773a] to-[#c8622a] transition-all duration-100"
+                    style={{ width: `${buildProgress}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-[#b0a89e]">{buildProgress}% complete</p>
+              </div>
+            </div>
+          )}
+
         </div>
+      )}
 
-        <div className="px-4 py-4 sm:px-5 sm:py-5">
-          <div className="space-y-3">
-            {activeItems.map((item) => (
-              <button
-                key={item.label}
-                className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-[#faf7f2]"
-                onClick={() => {
-                  setPrompt(item.label);
-                  setStatus("Suggestion added to the prompt box");
-                }}
-                type="button"
-              >
-                {iconWrapper(item.icon)}
-                <span className="text-base text-[#5a534b]">{t(item.label)}</span>
-              </button>
-            ))}
+      {/* ── Suggestion Tabs (shown when onboarding is dismissed) ─────────── */}
+      {onboardingPhase === 0 && (
+        <div className="mt-5 overflow-hidden rounded-[26px] border border-[#ddd4ca] bg-white shadow-[0_16px_40px_rgba(46,32,18,0.08)]">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#ece3d7] px-4 py-3 sm:px-5">
+            {/* Re-open onboarding */}
+            <button
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#c8622a]/20 bg-[#fff8f3] px-3 py-1.5 text-xs font-medium text-[#c8622a] transition hover:border-[#c8622a]/40 hover:bg-[#fff4ee]"
+              onClick={() => { setOnboardingPhase(1); setOnboardingAnswers([]); setOnboardingStep(0); }}
+              type="button"
+            >
+              ✨ Guide me
+            </button>
+            <div className="h-4 w-px bg-[#e8dfd4]" />
+            {tabs.map((tab) => {
+              const isActive = tab.name === activeTab;
+              return (
+                <button
+                  key={tab.name}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    isActive
+                      ? "border-[#d9d1c7] bg-[#faf7f2] text-[#2f2a24]"
+                      : "border-transparent text-[#6f675f] hover:text-[#2f2a24]"
+                  }`}
+                  onClick={() => setActiveTab(tab.name)}
+                  type="button"
+                >
+                  <TabIcon tab={tab.name} />
+                  {tab.name}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="px-4 py-4 sm:px-5 sm:py-5">
+            <div className="space-y-3">
+              {activeItems.map((item) => (
+                <button
+                  key={item.label}
+                  className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-[#faf7f2]"
+                  onClick={() => {
+                    setPrompt(item.label);
+                    setStatus("Suggestion added to the prompt box");
+                  }}
+                  type="button"
+                >
+                  {iconWrapper(item.icon)}
+                  <span className="text-base text-[#5a534b]">{t(item.label)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-[#ece3d7] bg-[#fcfaf7] px-4 py-3 text-xs text-[#9a9186] sm:px-5">
+            Click any suggestion to fill the search box, then press <span className="font-semibold text-[#7f7468]">Let&apos;s go</span>
           </div>
         </div>
-
-        <div className="border-t border-[#ece3d7] bg-[#fcfaf7] px-4 py-3 text-xs text-[#9a9186] sm:px-5">
-          Click any suggestion to fill the search box, then press <span className="font-semibold text-[#7f7468]">Let&apos;s go</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

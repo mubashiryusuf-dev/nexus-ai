@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { useToast } from "@/components/shared/toast-provider";
@@ -111,6 +112,8 @@ function TypingIndicator(): React.JSX.Element {
 export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Element {
   const { token, user } = useAuth();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const promptFromUrl = searchParams.get("prompt") ?? "";
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputId = useId();
@@ -128,7 +131,7 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
   const [agent, setAgent] = useState<AgentRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<ChatHistoryItem[]>([]);
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(promptFromUrl);
   const [isTyping, setIsTyping] = useState(false);
   const [msgCount, setMsgCount] = useState(0);
   const [tokenCount, setTokenCount] = useState(0);
@@ -173,6 +176,16 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  // Auto-focus textarea when a prompt was pre-filled from URL
+  useEffect(() => {
+    if (promptFromUrl && inputRef.current) {
+      inputRef.current.focus();
+      // Move cursor to end
+      const len = inputRef.current.value.length;
+      inputRef.current.setSelectionRange(len, len);
+    }
+  }, [promptFromUrl]);
 
   // Webcam preview sync
   useEffect(() => {
@@ -617,6 +630,24 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
         {/* Input area */}
         <div className="border-t border-[#ede5da] bg-gradient-to-r from-white to-[#fdfbf8] px-4 py-4 sm:px-6">
           <div className="mx-auto max-w-[720px]">
+            {/* Task pre-fill hint */}
+            {promptFromUrl && prompt === promptFromUrl && (
+              <div className="mb-2 flex items-center gap-2 rounded-xl bg-[#fff8f3] border border-[#f0d5be] px-3 py-2">
+                <svg className="h-3.5 w-3.5 shrink-0 text-[#c8622a]" fill="none" viewBox="0 0 24 24">
+                  <rect height="8" rx="2" strokeWidth="1.8" width="12" x="6" y="7" stroke="currentColor" />
+                  <path d="M10 15v2m4-2v2M9 19h6" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+                </svg>
+                <p className="flex-1 text-[11px] text-[#7b4a2a]">Task pre-filled from search — press Enter or click Send to run it.</p>
+                <button
+                  className="text-[11px] font-medium text-[#c8622a] underline-offset-2 hover:underline"
+                  onClick={() => setPrompt("")}
+                  type="button"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
             <div className="rounded-[22px] border border-[#d8d0c5] bg-[#faf7f2] shadow-[0_14px_34px_rgba(60,34,18,0.08)]">
               {/* Textarea */}
               <textarea

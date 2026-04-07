@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { AuthModal } from "@/components/auth/auth-modal";
@@ -198,6 +198,9 @@ export function AgentsBuilderExperience(): React.JSX.Element {
   const { toast } = useToast();
   const wizardRef = useRef<HTMLDivElement>(null);
 
+  const searchParams = useSearchParams();
+  const incomingPrompt = searchParams.get("prompt") ?? "";
+
   // Auth modal state
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<"signin" | "signup">("signin");
@@ -270,6 +273,13 @@ export function AgentsBuilderExperience(): React.JSX.Element {
     void load();
   }, [token]);
 
+  // Auto-switch to library when arriving with a prompt from the landing page
+  useEffect(() => {
+    if (incomingPrompt) {
+      setPageTab("library");
+    }
+  }, [incomingPrompt]);
+
   const toggleTool = (id: string): void => {
     setSelectedTools((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]);
   };
@@ -328,9 +338,11 @@ export function AgentsBuilderExperience(): React.JSX.Element {
   };
 
   const navigateToAgent = (agent: AgentRecord): void => {
-    if (agent._id) {
-      router.push(`/agents/${agent._id}`);
-    }
+    if (!agent._id) return;
+    const dest = incomingPrompt
+      ? `/agents/${agent._id}?prompt=${encodeURIComponent(incomingPrompt)}`
+      : `/agents/${agent._id}`;
+    router.push(dest);
   };
 
   const passRate = Math.round((selectedScenarios.length / testScenarios.length) * 100);
@@ -379,9 +391,33 @@ export function AgentsBuilderExperience(): React.JSX.Element {
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24">
               <path d="M12 5v14M5 12h14" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
             </svg>
-            New +
+            New 
           </button>
         </div>
+
+        {/* ── Incoming task banner (from landing page Agent button) ── */}
+        {incomingPrompt && (
+          <div className="mb-5 flex items-start gap-4 rounded-2xl border border-[#f0d5be] bg-gradient-to-r from-[#fff8f3] to-[#fef0e4] px-5 py-4 shadow-[0_4px_14px_rgba(200,98,42,0.10)]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#c8622a]/10 text-[#c8622a]">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <rect height="8" rx="2" strokeWidth="1.8" width="12" x="6" y="7" stroke="currentColor" />
+                <path d="M10 15v2m4-2v2M9 19h6" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#c8622a]">Task from search</p>
+              <p className="mt-1 text-sm font-medium text-[#2c2822] line-clamp-2">{incomingPrompt}</p>
+              <p className="mt-1.5 text-xs text-[#9e9b93]">Choose an agent below — your task will be pre-filled in the chat.</p>
+            </div>
+            <button
+              className="shrink-0 rounded-lg border border-[#e8d8ca] bg-white px-3 py-1.5 text-xs font-medium text-[#7b736b] transition hover:border-[#c8622a]/40 hover:text-[#c8622a]"
+              onClick={() => router.push(`/chat-hub?prompt=${encodeURIComponent(incomingPrompt)}`)}
+              type="button"
+            >
+              Use in Chat Hub →
+            </button>
+          </div>
+        )}
 
         {/* ── Page Tabs ─────────────────────────────────── */}
         <div className="mb-6 flex gap-1 rounded-2xl border border-[#e6ddd2] bg-white p-1 shadow-[0_4px_12px_rgba(46,32,18,0.04)]">
@@ -499,7 +535,11 @@ export function AgentsBuilderExperience(): React.JSX.Element {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold tracking-[-0.04em] text-[#1c1a16]">My Agents</h2>
-                <p className="mt-1 text-sm text-[#9e9b93]">Click an agent to open its chat interface.</p>
+                <p className="mt-1 text-sm text-[#9e9b93]">
+                  {incomingPrompt
+                    ? "Choose an agent — your task will be pre-filled in the chat."
+                    : "Click an agent to open its chat interface."}
+                </p>
               </div>
             </div>
             {loading ? (
@@ -530,8 +570,13 @@ export function AgentsBuilderExperience(): React.JSX.Element {
                 {myAgents.map((agent) => (
                   <button
                     key={agent._id}
-                    className="flex flex-col rounded-[22px] border border-[#eadfd2] bg-white p-5 text-left shadow-[0_8px_24px_rgba(46,32,18,0.04)] transition hover:border-[#c8622a]/40 hover:shadow-[0_12px_32px_rgba(46,32,18,0.08)]"
+                    className={`group flex flex-col rounded-[22px] border bg-white p-5 text-left shadow-[0_8px_24px_rgba(46,32,18,0.04)] transition hover:shadow-[0_12px_32px_rgba(46,32,18,0.10)] ${
+                      incomingPrompt
+                        ? "border-[#c8622a]/30 hover:border-[#c8622a]/60 hover:bg-[#fff9f5]"
+                        : "border-[#eadfd2] hover:border-[#c8622a]/40"
+                    }`}
                     onClick={() => navigateToAgent(agent)}
+                    title={incomingPrompt ? `Chat with ${agent.name}: "${incomingPrompt}"` : `Open ${agent.name}`}
                     type="button"
                   >
                     <div className="flex items-center gap-3">
@@ -552,8 +597,15 @@ export function AgentsBuilderExperience(): React.JSX.Element {
                         </span>
                       ))}
                     </div>
-                    <div className="mt-3 flex items-center gap-1 text-[11px] font-medium text-[#c8622a]">
-                      Open Chat →
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-medium text-[#c8622a] transition group-hover:underline">
+                        {incomingPrompt ? "Chat with task →" : "Open Chat →"}
+                      </span>
+                      {incomingPrompt && (
+                        <span className="rounded-full bg-[#fff4ee] px-2 py-0.5 text-[9px] font-semibold text-[#c8622a]">
+                          task ready
+                        </span>
+                      )}
                     </div>
                   </button>
                 ))}
