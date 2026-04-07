@@ -5,8 +5,18 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { useAuth } from "@/components/auth/auth-provider";
+import { AgentRouteButton } from "@/components/shared/agent-route-button";
+import { AttachmentPreviewStrip } from "@/components/shared/attachment-preview-strip";
 import { useToast } from "@/components/shared/toast-provider";
 import { apiClient } from "@/lib/api-client";
+import {
+  fileListToComposerAttachments,
+  readAgentButtonPreference,
+  revokeComposerAttachmentUrl,
+  writeAgentButtonPreference,
+  type ComposerAttachment as AttachmentItem,
+  type ComposerAttachmentKind as AttachmentKind
+} from "@/lib/composer-transfer";
 import {
   ImageIcon,
   MicIcon,
@@ -16,15 +26,6 @@ import {
   VideoIcon
 } from "@/components/shared/app-icons";
 import type { AgentRecord, ChatHistoryItem } from "@/types/api";
-
-type AttachmentKind = "image" | "file" | "video" | "voice";
-
-interface AttachmentItem {
-  kind: AttachmentKind;
-  name: string;
-  url?: string;
-  mimeType?: string;
-}
 
 interface SavedScreenRecording {
   name: string;
@@ -127,6 +128,9 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
   const screenChunksRef = useRef<Blob[]>([]);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const webcamStreamRef = useRef<MediaStream | null>(null);
+  const webcamCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const webcamRecorderRef = useRef<MediaRecorder | null>(null);
+  const webcamChunksRef = useRef<Blob[]>([]);
 
   const [agent, setAgent] = useState<AgentRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,6 +143,9 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [webcamActive, setWebcamActive] = useState(false);
+  const [webcamRecording, setWebcamRecording] = useState(false);
+  const [webcamRecordingElapsed, setWebcamRecordingElapsed] = useState(0);
+  const [webcamFlash, setWebcamFlash] = useState(false);
   const [recordingVoiceNote, setRecordingVoiceNote] = useState(false);
   const [listening, setListening] = useState(false);
   const [inputStatus, setInputStatus] = useState("Ready to help");
@@ -187,6 +194,26 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
     }
   }, [promptFromUrl]);
 
+  useEffect(() => {
+    setAgentEnabled(readAgentButtonPreference(true));
+  }, []);
+
+  useEffect(() => {
+    if (!webcamRecording) {
+      setWebcamRecordingElapsed(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      setWebcamRecordingElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [webcamRecording]);
+
   // Webcam preview sync
   useEffect(() => {
     if (!videoPreviewRef.current) return;
@@ -197,7 +224,7 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
   useEffect(() => {
     return () => {
       attachments.forEach((item) => {
-        if (item.kind === "voice" && item.url) URL.revokeObjectURL(item.url);
+        revokeComposerAttachmentUrl(item);
       });
       if (savedScreenRecording?.url) URL.revokeObjectURL(savedScreenRecording.url);
       if (screenRecorderRef.current) {
@@ -214,11 +241,28 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleAttach = (kind: AttachmentKind, fileList: FileList | null): void => {
+  const handleAttach = async (kind: AttachmentKind, fileList: FileList | null): Promise<void> => {
     if (!fileList?.length) return;
-    const nextFiles = Array.from(fileList).map((file) => ({ kind, name: file.name }));
+    const nextFiles = await fileListToComposerAttachments(kind, fileList);
     setAttachments((cur) => [...cur, ...nextFiles]);
     setInputStatus(`${nextFiles.length} ${kind} file${nextFiles.length > 1 ? "s" : ""} attached`);
+  };
+
+  const handleRemoveAttachment = (index: number): void => {
+    setAttachments((current) => {
+      const nextAttachments = [...current];
+      const [removed] = nextAttachments.splice(index, 1);
+      if (removed) {
+        revokeComposerAttachmentUrl(removed);
+      }
+      return nextAttachments;
+    });
+    setInputStatus("Attachment removed");
+  };
+
+  const clearComposerAttachments = (): void => {
+    attachments.forEach((attachment) => revokeComposerAttachmentUrl(attachment));
+    setAttachments([]);
   };
 
   const stopVoiceRecorder = (): void => {
@@ -327,9 +371,11 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
 
   const handleWebcamToggle = async (): Promise<void> => {
     if (webcamActive) {
+      webcamRecorderRef.current?.stop();
       webcamStreamRef.current?.getTracks().forEach((t) => t.stop());
       webcamStreamRef.current = null;
       setWebcamActive(false);
+      setWebcamRecording(false);
       setInputStatus("Webcam stopped");
       return;
     }
@@ -345,6 +391,57 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
     }
   };
 
+  const handleWebcamCapturePhoto = (): void => {
+    if (!videoPreviewRef.current || !webcamCanvasRef.current) return;
+    const video = videoPreviewRef.current;
+    const canvas = webcamCanvasRef.current;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    setWebcamFlash(true);
+    window.setTimeout(() => setWebcamFlash(false), 180);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const name = `webcam-photo-${Date.now()}.png`;
+      setAttachments((prev) => [...prev, { kind: "image", name, url, mimeType: "image/png" }]);
+      setInputStatus("Photo captured from webcam");
+    }, "image/png");
+  };
+
+  const handleWebcamRecordToggle = (): void => {
+    if (webcamRecording) {
+      webcamRecorderRef.current?.stop();
+      return;
+    }
+    if (!webcamStreamRef.current) return;
+    webcamChunksRef.current = [];
+    const mr = new MediaRecorder(webcamStreamRef.current);
+    mr.ondataavailable = (event) => { if (event.data.size > 0) webcamChunksRef.current.push(event.data); };
+    mr.onstop = () => {
+      const blob = new Blob(webcamChunksRef.current, { type: "video/webm" });
+      if (blob.size > 0) {
+        const url = URL.createObjectURL(blob);
+        const name = `webcam-video-${Date.now()}.webm`;
+        setAttachments((prev) => [...prev, { kind: "video", name, url, mimeType: "video/webm" }]);
+      }
+      setWebcamRecording(false);
+      setWebcamRecordingElapsed(0);
+      setInputStatus("Webcam video saved");
+    };
+    webcamRecorderRef.current = mr;
+    mr.start();
+    setWebcamRecording(true);
+    setWebcamRecordingElapsed(0);
+    setInputStatus("Recording webcam video...");
+  };
+
+  const formatRecordingTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+  };
+
   const confirmResetChat = (): void => {
     if (!agent) return;
     const welcome: ChatHistoryItem = {
@@ -356,7 +453,7 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
     setMsgCount(1);
     setTokenCount(0);
     setPrompt("");
-    setAttachments([]);
+    clearComposerAttachments();
     setShowResetConfirm(false);
     toast("Chat cleared", "success");
   };
@@ -372,9 +469,9 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
       content,
       timestamp: new Date().toISOString()
     };
+    clearComposerAttachments();
     setMessages((prev) => [...prev, userMsg]);
     setPrompt("");
-    setAttachments([]);
     setIsTyping(true);
     setMsgCount((c) => c + 1);
 
@@ -680,7 +777,10 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
                             accept="image/*"
                             className="hidden"
                             id={imageInputId}
-                            onChange={(e) => handleAttach("image", e.target.files)}
+                            onChange={(e) => {
+                              void handleAttach("image", e.target.files);
+                              e.target.value = "";
+                            }}
                             type="file"
                           />
                         </label>
@@ -694,7 +794,10 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
                           <input
                             className="hidden"
                             id={fileInputId}
-                            onChange={(e) => handleAttach("file", e.target.files)}
+                            onChange={(e) => {
+                              void handleAttach("file", e.target.files);
+                              e.target.value = "";
+                            }}
                             type="file"
                           />
                         </label>
@@ -756,25 +859,15 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
                   })}
 
                   {/* Agent mode toggle */}
-                  <button
-                    className={`inline-flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition ${
-                      agentEnabled
-                        ? "border-[#cdc5bb] bg-[#efece6] text-[#4f473f]"
-                        : "border-[#e5ddd3] bg-white text-[#82796f]"
-                    }`}
+                  <AgentRouteButton
+                    enabled={agentEnabled}
                     onClick={() => {
                       const next = !agentEnabled;
                       setAgentEnabled(next);
+                      writeAgentButtonPreference(next);
                       setInputStatus(next ? "Agent mode enabled" : "Agent mode disabled");
                     }}
-                    type="button"
-                  >
-                    <RobotIcon className="h-[14px] w-[14px]" />
-                    <span>Agent</span>
-                    <span className="rounded-full bg-[#d9d5ce] px-2 py-0.5 text-[11px]">
-                      {agentEnabled ? "+" : "•"}
-                    </span>
-                  </button>
+                  />
                 </div>
 
                 <div className="flex items-center justify-between gap-3 lg:justify-end">
@@ -801,24 +894,43 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
                 <div className="border-t border-[#f1e8de] px-4 py-3 sm:px-5">
                   {webcamActive && (
                     <div className="mb-3 overflow-hidden rounded-[18px] border border-[#f0d6d6] bg-[#fff6f6] p-2">
-                      <video
-                        ref={videoPreviewRef}
-                        autoPlay
-                        className="h-40 w-full rounded-[14px] bg-[#1c1a16] object-cover"
-                        muted
-                        playsInline
-                      />
+                      <div className="relative">
+                        <video
+                          ref={videoPreviewRef}
+                          autoPlay
+                          className="h-40 w-full rounded-[14px] bg-[#1c1a16] object-cover"
+                          muted
+                          playsInline
+                        />
+                        <div className={`pointer-events-none absolute inset-0 rounded-[14px] bg-white/80 transition ${webcamFlash ? "opacity-100" : "opacity-0"}`} />
+                        {webcamRecording ? (
+                          <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-[#1c1a16]/75 px-3 py-1 text-xs font-semibold text-white">
+                            <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444] animate-pulse" />
+                            LIVE
+                            <span className="text-white/80">{formatRecordingTime(webcamRecordingElapsed)}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                      <canvas ref={webcamCanvasRef} className="hidden" />
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          className="flex-1 rounded-full border border-[#f0d6d6] bg-white py-1.5 text-xs font-medium text-[#be123c] transition hover:bg-[#fff1f2]"
+                          onClick={handleWebcamCapturePhoto}
+                          type="button"
+                        >
+                          Take Photo
+                        </button>
+                        <button
+                          className={`flex-1 rounded-full border py-1.5 text-xs font-medium transition ${webcamRecording ? "border-[#ef4444] bg-[#fff1f2] text-[#ef4444]" : "border-[#f0d6d6] bg-white text-[#be123c] hover:bg-[#fff1f2]"}`}
+                          onClick={handleWebcamRecordToggle}
+                          type="button"
+                        >
+                          {webcamRecording ? "Stop Recording" : "Record Video"}
+                        </button>
+                      </div>
                     </div>
                   )}
-                  {attachments.some((a) => a.kind === "voice" && a.url) && (
-                    <div className="mb-3 space-y-2">
-                      {attachments
-                        .filter((a) => a.kind === "voice" && a.url)
-                        .map((a) => (
-                          <audio key={`${a.name}-${a.url}`} controls className="w-full" src={a.url} />
-                        ))}
-                    </div>
-                  )}
+                  <AttachmentPreviewStrip attachments={attachments} onRemove={handleRemoveAttachment} />
                   {savedScreenRecording && (
                     <div className="mb-3 rounded-[18px] border border-[#d8eadf] bg-[#f4fbf7] p-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
@@ -838,11 +950,6 @@ export function AgentChatPage({ agentId }: AgentChatPageProps): React.JSX.Elemen
                     </div>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
-                    {attachments.map((a) => (
-                      <span key={`${a.kind}-${a.name}`} className="rounded-full bg-[#f6f1ea] px-3 py-1 text-xs text-[#645c54]">
-                        {a.kind === "voice" ? "voice note attached" : `${a.kind}: ${a.name}`}
-                      </span>
-                    ))}
                     {screenSharing && (
                       <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-xs text-[#047857]">Screen sharing active</span>
                     )}

@@ -215,7 +215,7 @@ export function ComparisonSection(): React.JSX.Element {
                   </tr>
                 ))
               : models.map((model, idx) => (
-                  <tr key={model.slug} className={`transition hover:bg-[#fdf9f5] ${idx % 2 === 0 ? "bg-white" : "bg-[#fdfbf8]"}`}>
+                  <tr key={model._id ?? model.slug ?? model.name ?? idx} className={`transition hover:bg-[#fdf9f5] ${idx % 2 === 0 ? "bg-white" : "bg-[#fdfbf8]"}`}>
                     <td className="px-5 py-3.5 text-sm font-semibold text-[#2e2923] whitespace-nowrap">{model.name}</td>
                     <td className="px-5 py-3.5 text-sm text-[#746d65]">{model.provider}</td>
                     <td className="px-5 py-3.5">

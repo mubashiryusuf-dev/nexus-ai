@@ -10,7 +10,8 @@
       "Bash(dir frontend:*)",
       "Bash(dir frontend\\\\src\\\\app)",
       "Bash(npx tsc:*)",
-      "Bash(npx --yes tsc --noEmit)"
+      "Bash(npx --yes tsc --noEmit)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }

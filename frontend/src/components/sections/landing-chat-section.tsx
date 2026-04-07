@@ -4,16 +4,18 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useSiteLanguage } from "@/components/i18n/site-language-provider";
+import { AgentRouteButton } from "@/components/shared/agent-route-button";
+import { AttachmentPreviewStrip } from "@/components/shared/attachment-preview-strip";
+import {
+  fileListToComposerAttachments,
+  persistComposerHandoff,
+  readAgentButtonPreference,
+  revokeComposerAttachmentUrl,
+  type ComposerAttachment as AttachmentItem,
+  type ComposerAttachmentKind as AttachmentKind
+} from "@/lib/composer-transfer";
 
 type SuggestionTab = "Recruiting" | "Create a prototype" | "Build a business" | "Help me learn" | "Research";
-type AttachmentKind = "image" | "file" | "video" | "voice";
-
-interface AttachmentItem {
-  kind: AttachmentKind;
-  name: string;
-  url?: string;
-  mimeType?: string;
-}
 
 interface SavedScreenRecording {
   name: string;
@@ -246,9 +248,14 @@ export function LandingChatSection(): JSX.Element {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [screenSharing, setScreenSharing] = useState(false);
   const [webcamActive, setWebcamActive] = useState(false);
+  const [webcamRecording, setWebcamRecording] = useState(false);
+  const [webcamRecordingElapsed, setWebcamRecordingElapsed] = useState(0);
+  const [webcamFlash, setWebcamFlash] = useState(false);
   const [recordingVoiceNote, setRecordingVoiceNote] = useState(false);
   const [status, setStatus] = useState("Ready to help");
   const [listening, setListening] = useState(false);
+  const [agentEnabled, setAgentEnabled] = useState(true);
+  const [latestTranscript, setLatestTranscript] = useState("");
   const imageInputId = useId();
   const fileInputId = useId();
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
@@ -260,6 +267,9 @@ export function LandingChatSection(): JSX.Element {
   const screenChunksRef = useRef<Blob[]>([]);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const webcamStreamRef = useRef<MediaStream | null>(null);
+  const webcamCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const webcamRecorderRef = useRef<MediaRecorder | null>(null);
+  const webcamChunksRef = useRef<Blob[]>([]);
   const [savedScreenRecording, setSavedScreenRecording] = useState<SavedScreenRecording | null>(null);
   const activeItems = tabs.find((tab) => tab.name === activeTab)?.items ?? [];
 
@@ -323,6 +333,26 @@ export function LandingChatSection(): JSX.Element {
     }
   ] as const;
 
+  useEffect(() => {
+    setAgentEnabled(readAgentButtonPreference(true));
+  }, []);
+
+  useEffect(() => {
+    if (!webcamRecording) {
+      setWebcamRecordingElapsed(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      setWebcamRecordingElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [webcamRecording]);
+
   const handleStartOnboarding = (): void => {
     setPreparingQuestions(true);
     setPrepareProgress(0);
@@ -383,24 +413,37 @@ export function LandingChatSection(): JSX.Element {
   };
 
   const handleClearInput = (): void => {
+    attachments.forEach((item) => revokeComposerAttachmentUrl(item));
+    if (savedScreenRecording?.url) {
+      URL.revokeObjectURL(savedScreenRecording.url);
+    }
     setPrompt("");
     setAttachments([]);
+    setLatestTranscript("");
     setStatus("Ready to help");
     setSavedScreenRecording(null);
   };
 
-  const handleAttach = (kind: AttachmentKind, fileList: FileList | null): void => {
+  const handleAttach = async (kind: AttachmentKind, fileList: FileList | null): Promise<void> => {
     if (!fileList?.length) {
       return;
     }
 
-    const nextFiles = Array.from(fileList).map((file) => ({
-      kind,
-      name: file.name
-    }));
-
+    const nextFiles = await fileListToComposerAttachments(kind, fileList);
     setAttachments((current) => [...current, ...nextFiles]);
     setStatus(`${nextFiles.length} ${kind} attachment${nextFiles.length > 1 ? "s" : ""} added`);
+  };
+
+  const handleRemoveAttachment = (index: number): void => {
+    setAttachments((current) => {
+      const nextAttachments = [...current];
+      const [removed] = nextAttachments.splice(index, 1);
+      if (removed) {
+        revokeComposerAttachmentUrl(removed);
+      }
+      return nextAttachments;
+    });
+    setStatus("Attachment removed");
   };
 
   const stopVoiceRecorder = (): void => {
@@ -434,6 +477,7 @@ export function LandingChatSection(): JSX.Element {
       const transcript = event.results[0]?.[0]?.transcript ?? "";
       if (transcript) {
         setPrompt(transcript);
+        setLatestTranscript(transcript);
         setStatus(mode === "voice" ? "Voice prompt captured" : "Voice converted to text");
       }
     };
@@ -602,9 +646,11 @@ export function LandingChatSection(): JSX.Element {
   };
 
   const stopWebcamStream = (): void => {
+    webcamRecorderRef.current?.stop();
     webcamStreamRef.current?.getTracks().forEach((track) => track.stop());
     webcamStreamRef.current = null;
     setWebcamActive(false);
+    setWebcamRecording(false);
   };
 
   const handleWebcamToggle = async (): Promise<void> => {
@@ -641,12 +687,68 @@ export function LandingChatSection(): JSX.Element {
     }
   };
 
-  const handleSend = (): void => {
+  const handleWebcamCapturePhoto = (): void => {
+    if (!videoPreviewRef.current || !webcamCanvasRef.current) return;
+    const video = videoPreviewRef.current;
+    const canvas = webcamCanvasRef.current;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    setWebcamFlash(true);
+    window.setTimeout(() => setWebcamFlash(false), 180);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const name = `webcam-photo-${Date.now()}.png`;
+      setAttachments((prev) => [...prev, { kind: "image", name, url, mimeType: "image/png" }]);
+      setStatus("Photo captured from webcam");
+    }, "image/png");
+  };
+
+  const handleWebcamRecordToggle = (): void => {
+    if (webcamRecording) {
+      webcamRecorderRef.current?.stop();
+      return;
+    }
+    if (!webcamStreamRef.current) return;
+    webcamChunksRef.current = [];
+    const mr = new MediaRecorder(webcamStreamRef.current);
+    mr.ondataavailable = (e) => { if (e.data.size > 0) webcamChunksRef.current.push(e.data); };
+    mr.onstop = () => {
+      const blob = new Blob(webcamChunksRef.current, { type: "video/webm" });
+      if (blob.size > 0) {
+        const url = URL.createObjectURL(blob);
+        const name = `webcam-video-${Date.now()}.webm`;
+        setAttachments((prev) => [...prev, { kind: "video", name, url, mimeType: "video/webm" }]);
+      }
+      setWebcamRecording(false);
+      setWebcamRecordingElapsed(0);
+      setStatus("Webcam video saved");
+    };
+    webcamRecorderRef.current = mr;
+    mr.start();
+    setWebcamRecording(true);
+    setWebcamRecordingElapsed(0);
+    setStatus("Recording webcam video...");
+  };
+
+  const formatRecordingTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+  };
+
+  const handleSend = async (): Promise<void> => {
     const hasVoiceNote = attachments.some((item) => item.kind === "voice");
     const finalPrompt =
       prompt.trim() || (hasVoiceNote ? "Voice note attached" : activeItems[0]?.label || "Help me get started");
 
     setStatus(`Opening Chat Hub with "${finalPrompt}"`);
+    await persistComposerHandoff({
+      prompt: finalPrompt,
+      transcript: latestTranscript || undefined,
+      attachments
+    });
     router.push(`/chat-hub?prompt=${encodeURIComponent(finalPrompt)}`);
   };
 
@@ -668,9 +770,7 @@ export function LandingChatSection(): JSX.Element {
   useEffect(() => {
     return () => {
       [...attachments].forEach((item) => {
-        if (item.kind === "voice" && item.url) {
-          URL.revokeObjectURL(item.url);
-        }
+        revokeComposerAttachmentUrl(item);
       });
       if (savedScreenRecording?.url) {
         URL.revokeObjectURL(savedScreenRecording.url);
@@ -736,7 +836,10 @@ export function LandingChatSection(): JSX.Element {
                         accept="image/*"
                         className="hidden"
                         id={imageInputId}
-                        onChange={(event) => handleAttach("image", event.target.files)}
+                        onChange={(event) => {
+                          void handleAttach("image", event.target.files);
+                          event.target.value = "";
+                        }}
                         type="file"
                       />
                     </label>
@@ -750,7 +853,10 @@ export function LandingChatSection(): JSX.Element {
                       <input
                         className="hidden"
                         id={fileInputId}
-                        onChange={(event) => handleAttach("file", event.target.files)}
+                        onChange={(event) => {
+                          void handleAttach("file", event.target.files);
+                          event.target.value = "";
+                        }}
                         type="file"
                       />
                     </label>
@@ -808,27 +914,20 @@ export function LandingChatSection(): JSX.Element {
                 );
               })}
 
-              <button
-                className="group inline-flex h-11 items-center gap-2 rounded-full border border-[#c8622a]/30 bg-gradient-to-r from-[#fff4ee] to-[#fdebd8] px-4 text-sm font-semibold text-[#c8622a] shadow-[0_4px_12px_rgba(200,98,42,0.12)] transition hover:border-[#c8622a]/60 hover:shadow-[0_6px_18px_rgba(200,98,42,0.22)]"
+              <AgentRouteButton
+                enabled={agentEnabled}
                 onClick={handleAgentClick}
+                showArrow
                 title={prompt.trim() ? `Open agents with: "${prompt.trim()}"` : "Go to Agents"}
-                type="button"
-              >
-                <svg className="h-[14px] w-[14px] shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
-                  <rect height="8" rx="2" strokeWidth="1.8" width="12" x="6" y="7" />
-                  <path d="M10 15v2m4-2v2M9 19h6" strokeLinecap="round" strokeWidth="1.8" />
-                </svg>
-                <span>Agent</span>
-                <svg className="h-3 w-3 shrink-0 stroke-current opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100" fill="none" viewBox="0 0 24 24">
-                  <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                </svg>
-              </button>
+              />
             </div>
 
             <button
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#d9773a] to-[#c8622a] px-6 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(200,98,42,0.32)] transition hover:shadow-[0_12px_28px_rgba(200,98,42,0.40)] disabled:opacity-50 disabled:shadow-none"
               disabled={!prompt.trim() && attachments.length === 0}
-              onClick={handleSend}
+              onClick={() => {
+                void handleSend();
+              }}
               type="button"
             >
               <svg className="h-[15px] w-[15px] stroke-current" fill="none" viewBox="0 0 24 24">
@@ -843,29 +942,43 @@ export function LandingChatSection(): JSX.Element {
             <div className="border-t border-[#f1e8de] pt-3">
               {webcamActive ? (
                 <div className="mb-3 overflow-hidden rounded-[18px] border border-[#f0d6d6] bg-[#fff6f6] p-2">
-                  <video
-                    ref={videoPreviewRef}
-                    autoPlay
-                    className="h-40 w-full rounded-[14px] bg-[#1c1a16] object-cover"
-                    muted
-                    playsInline
-                  />
+                  <div className="relative">
+                    <video
+                      ref={videoPreviewRef}
+                      autoPlay
+                      className="h-40 w-full rounded-[14px] bg-[#1c1a16] object-cover"
+                      muted
+                      playsInline
+                    />
+                    <div className={`pointer-events-none absolute inset-0 rounded-[14px] bg-white/80 transition ${webcamFlash ? "opacity-100" : "opacity-0"}`} />
+                    {webcamRecording ? (
+                      <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-[#1c1a16]/75 px-3 py-1 text-xs font-semibold text-white">
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444] animate-pulse" />
+                        LIVE
+                        <span className="text-white/80">{formatRecordingTime(webcamRecordingElapsed)}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <canvas ref={webcamCanvasRef} className="hidden" />
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      className="flex-1 rounded-full border border-[#f0d6d6] bg-white py-1.5 text-xs font-medium text-[#be123c] transition hover:bg-[#fff1f2]"
+                      onClick={handleWebcamCapturePhoto}
+                      type="button"
+                    >
+                      Take Photo
+                    </button>
+                    <button
+                      className={`flex-1 rounded-full border py-1.5 text-xs font-medium transition ${webcamRecording ? "border-[#ef4444] bg-[#fff1f2] text-[#ef4444]" : "border-[#f0d6d6] bg-white text-[#be123c] hover:bg-[#fff1f2]"}`}
+                      onClick={handleWebcamRecordToggle}
+                      type="button"
+                    >
+                      {webcamRecording ? "Stop Recording" : "Record Video"}
+                    </button>
+                  </div>
                 </div>
               ) : null}
-              {attachments.some((item) => item.kind === "voice" && item.url) ? (
-                <div className="mb-3 space-y-2">
-                  {attachments
-                    .filter((item) => item.kind === "voice" && item.url)
-                    .map((item) => (
-                      <audio
-                        key={`${item.name}-${item.url}`}
-                        controls
-                        className="w-full"
-                        src={item.url}
-                      />
-                    ))}
-                </div>
-              ) : null}
+              <AttachmentPreviewStrip attachments={attachments} onRemove={handleRemoveAttachment} />
               {savedScreenRecording ? (
                 <div className="mb-3 rounded-[18px] border border-[#d8eadf] bg-[#f4fbf7] p-3">
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -889,14 +1002,6 @@ export function LandingChatSection(): JSX.Element {
                 </div>
               ) : null}
               <div className="flex flex-wrap items-center gap-2">
-              {attachments.map((item) => (
-                <span
-                  key={`${item.kind}-${item.name}`}
-                  className="rounded-full bg-[#f6f1ea] px-3 py-1 text-xs text-[#645c54]"
-                >
-                  {item.kind === "voice" ? "voice note attached" : `${item.kind}: ${item.name}`}
-                </span>
-              ))}
               {screenSharing ? (
                 <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-xs text-[#047857]">
                   Screen sharing active

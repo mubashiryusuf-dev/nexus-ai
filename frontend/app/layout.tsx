@@ -30,6 +30,9 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
   return (
     <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+      </head>
       <body
         className={`${instrumentSans.variable} ${syne.variable} min-h-screen bg-sand font-sans text-ink antialiased`}
       >
