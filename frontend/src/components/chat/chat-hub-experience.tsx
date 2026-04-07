@@ -271,6 +271,7 @@ export function ChatHubExperience(): JSX.Element {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [chatMessages, setChatMessages] = useState<ChatMessageView[]>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
+  const [showChatResetConfirm, setShowChatResetConfirm] = useState(false);
   const initialPromptAppliedRef = useRef(false);
 
   useEffect(() => {
@@ -706,6 +707,14 @@ export function ChatHubExperience(): JSX.Element {
     }
   };
 
+  const handleResetChatMessages = (): void => {
+    setChatMessages([]);
+    setPrompt("");
+    setAttachments([]);
+    setStatus("Ready to help");
+    setShowChatResetConfirm(false);
+  };
+
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -853,7 +862,7 @@ export function ChatHubExperience(): JSX.Element {
         </aside>
         <section className="relative min-w-0 border-b border-[#e7dfd5] lg:h-[calc(100vh-73px)] lg:overflow-y-auto lg:border-b-0 lg:border-r">
           <div className="mx-auto max-w-[860px] px-4 pb-10 pt-6 sm:px-5">
-            <div className="rounded-[34px] border border-[#ece4da] bg-white px-6 pb-8 pt-8 shadow-[0_10px_30px_rgba(60,34,18,0.05)] sm:px-8">
+            <div className="rounded-[34px] border border-[#ece4da] bg-gradient-to-br from-white to-[#fdfbf8] px-6 pb-8 pt-8 shadow-[0_10px_30px_rgba(60,34,18,0.06)] sm:px-8">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="max-w-[560px]">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#f0d9ca] bg-[#fff8f3] text-[#aa8f7d]">
@@ -916,57 +925,98 @@ export function ChatHubExperience(): JSX.Element {
 
             {/* ── Live chat message thread ─────────────────── */}
             {chatMessages.length > 0 && (
-              <div className="mt-5 max-h-[420px] overflow-y-auto rounded-[22px] border border-[#e5ddd3] bg-white px-4 py-4 space-y-4 shadow-[inset_0_2px_8px_rgba(46,32,18,0.03)]">
-                {chatMessages.map((msg, idx) => (
-                  <div
-                    key={`${msg.timestamp}-${idx}`}
-                    className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
-                  >
-                    {/* Avatar */}
-                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${msg.role === "user" ? "bg-[#c8622a] text-white" : "bg-[#f4f0ea] text-[#5a5750]"}`}>
-                      {msg.role === "user" ? (user?.fullName?.[0]?.toUpperCase() ?? "U") : "AI"}
-                    </div>
-                    {/* Bubble */}
-                    <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-6 ${msg.role === "user" ? "bg-[#c8622a] text-white rounded-tr-sm" : "bg-[#faf7f2] text-[#2c2822] border border-[#e8dfd4] rounded-tl-sm"}`}>
-                      <p style={{ whiteSpace: "pre-wrap" }}>{msg.content}</p>
-                      {msg.attachments?.some((item) => item.kind === "voice" && item.url) ? (
-                        <div className="mt-3 space-y-2">
-                          {msg.attachments
-                            .filter((item) => item.kind === "voice" && item.url)
-                            .map((item) => (
-                              <audio
-                                key={`${item.name}-${item.url}`}
-                                controls
-                                className="max-w-full"
-                                src={item.url}
-                              />
-                            ))}
-                        </div>
-                      ) : null}
-                      <p className={`mt-1.5 text-[10px] ${msg.role === "user" ? "text-white/60 text-right" : "text-[#9e9b93]"}`}>
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
+              <div className="mt-5 overflow-hidden rounded-[22px] border border-[#e5ddd3] bg-white shadow-[0_4px_20px_rgba(46,32,18,0.06)]">
+                {/* Thread header with reset */}
+                <div className="flex items-center justify-between border-b border-[#f0e8de] bg-gradient-to-r from-[#fdfcfa] to-[#f9f6f1] px-4 py-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#b0a89e]">
+                    Conversation · {chatMessages.length} messages
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {showChatResetConfirm ? (
+                      <>
+                        <span className="text-xs text-[#7b4a2a]">Clear all messages?</span>
+                        <button
+                          className="rounded-lg border border-[#e6ddd2] bg-white px-2.5 py-1 text-[11px] font-medium text-[#7b736b] transition hover:bg-[#f7f3ee]"
+                          onClick={() => setShowChatResetConfirm(false)}
+                          type="button"
+                        >Cancel</button>
+                        <button
+                          className="rounded-lg bg-[#c8622a] px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-[#a34d1e]"
+                          onClick={handleResetChatMessages}
+                          type="button"
+                        >Reset</button>
+                      </>
+                    ) : (
+                      <button
+                        className="flex items-center gap-1.5 rounded-lg border border-[#e6ddd2] bg-white px-2.5 py-1 text-[11px] font-medium text-[#7b736b] transition hover:border-[#f0b8a0] hover:text-[#c8622a]"
+                        onClick={() => setShowChatResetConfirm(true)}
+                        type="button"
+                      >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                          <path d="M3 3v5h5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                        </svg>
+                        Reset Chat
+                      </button>
+                    )}
                   </div>
-                ))}
-                {/* Typing indicator */}
-                {isAiTyping && (
-                  <div className="flex gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4f0ea] text-[11px] font-bold text-[#5a5750]">AI</div>
-                    <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-[#e8dfd4] bg-[#faf7f2] px-4 py-3">
-                      <span className="bounce-dot-1 h-2 w-2 rounded-full bg-[#9e9b93]" />
-                      <span className="bounce-dot-2 h-2 w-2 rounded-full bg-[#9e9b93]" />
-                      <span className="bounce-dot-3 h-2 w-2 rounded-full bg-[#9e9b93]" />
+                </div>
+                {/* Messages */}
+                <div className="max-h-[400px] overflow-y-auto space-y-4 px-4 py-4">
+                  {chatMessages.map((msg, idx) => (
+                    <div
+                      key={`${msg.timestamp}-${idx}`}
+                      className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+                    >
+                      {/* Avatar */}
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold shadow-sm ${
+                        msg.role === "user"
+                          ? "bg-gradient-to-br from-[#c8622a] to-[#a34d1e] text-white"
+                          : "bg-gradient-to-br from-[#f7f3ee] to-[#ede8e0] text-[#5a5750]"
+                      }`}>
+                        {msg.role === "user" ? (user?.fullName?.[0]?.toUpperCase() ?? "U") : "AI"}
+                      </div>
+                      {/* Bubble */}
+                      <div className={`max-w-[78%] rounded-2xl px-4 py-3 text-sm leading-[1.75] sm:max-w-[72%] ${
+                        msg.role === "user"
+                          ? "bg-gradient-to-br from-[#c8622a] to-[#a34d1e] text-white rounded-tr-sm shadow-[0_4px_14px_rgba(200,98,42,0.22)]"
+                          : "bg-[#faf7f2] text-[#2c2822] border border-[#e8dfd4] rounded-tl-sm shadow-[0_2px_8px_rgba(46,32,18,0.04)]"
+                      }`}>
+                        <p style={{ whiteSpace: "pre-wrap" }}>{msg.content}</p>
+                        {msg.attachments?.some((item) => item.kind === "voice" && item.url) ? (
+                          <div className="mt-3 space-y-2">
+                            {msg.attachments
+                              .filter((item) => item.kind === "voice" && item.url)
+                              .map((item) => (
+                                <audio key={`${item.name}-${item.url}`} controls className="max-w-full" src={item.url} />
+                              ))}
+                          </div>
+                        ) : null}
+                        <p className={`mt-2 text-[10px] ${msg.role === "user" ? "text-white/50 text-right" : "text-[#b0a89e]"}`}>
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
+                  ))}
+                  {/* Typing indicator */}
+                  {isAiTyping && (
+                    <div className="flex gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#f7f3ee] to-[#ede8e0] text-[11px] font-bold text-[#5a5750] shadow-sm">AI</div>
+                      <div className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm border border-[#e8dfd4] bg-[#faf7f2] px-4 py-3">
+                        <span className="bounce-dot-1 h-2 w-2 rounded-full bg-[#c8622a]" />
+                        <span className="bounce-dot-2 h-2 w-2 rounded-full bg-[#c8622a]" />
+                        <span className="bounce-dot-3 h-2 w-2 rounded-full bg-[#c8622a]" />
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
               </div>
             )}
 
-            <div className="mt-5 rounded-[22px] border border-[#d8d0c5] bg-[#faf7f2] shadow-[0_14px_34px_rgba(60,34,18,0.08)]">
+            <div className="mt-5 rounded-[22px] border border-[#d8d0c5] bg-white shadow-[0_14px_34px_rgba(60,34,18,0.08)] transition-shadow focus-within:shadow-[0_18px_40px_rgba(60,34,18,0.12)]">
               <textarea
-                className="min-h-[128px] w-full resize-none border-0 bg-transparent px-4 py-4 text-[1rem] leading-7 text-[#5d544b] outline-none placeholder:text-[#9c9288] sm:px-5 disabled:opacity-60"
+                className="min-h-[128px] w-full resize-none border-0 bg-transparent px-4 py-4 text-[1rem] leading-7 text-[#3a3229] outline-none placeholder:text-[#a09890] sm:px-5 disabled:opacity-60"
                 disabled={isAiTyping}
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={(event) => {
@@ -1090,7 +1140,7 @@ export function ChatHubExperience(): JSX.Element {
                     <p className="text-xs text-[#aa9f93]">{selectedAction}</p>
                   </div>
                   <button
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-[#cb682b] text-white transition hover:bg-[#a34d1e] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#d9773a] to-[#b85522] text-white shadow-[0_6px_18px_rgba(200,98,42,0.30)] transition hover:shadow-[0_8px_22px_rgba(200,98,42,0.40)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
                     disabled={isAiTyping || (!prompt.trim() && attachments.length === 0)}
                     onClick={() => { void handleSend(); }}
                     type="button"

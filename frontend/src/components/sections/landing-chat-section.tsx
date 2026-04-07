@@ -264,6 +264,13 @@ export function LandingChatSection(): JSX.Element {
   const [savedScreenRecording, setSavedScreenRecording] = useState<SavedScreenRecording | null>(null);
   const activeItems = tabs.find((tab) => tab.name === activeTab)?.items ?? [];
 
+  const handleClearInput = (): void => {
+    setPrompt("");
+    setAttachments([]);
+    setStatus("Ready to help");
+    setSavedScreenRecording(null);
+  };
+
   const handleAttach = (kind: AttachmentKind, fileList: FileList | null): void => {
     if (!fileList?.length) {
       return;
@@ -564,22 +571,30 @@ export function LandingChatSection(): JSX.Element {
         the box below. We&apos;ll do the rest together. ✨
       </p>
 
-      <div className="mt-8 rounded-[30px] border border-[#ddd4ca] bg-white px-4 py-4 shadow-[0_16px_40px_rgba(46,32,18,0.10)] sm:px-5">
+      <div className="mt-8 rounded-[30px] border border-[#ddd4ca] bg-white px-4 py-4 shadow-[0_20px_50px_rgba(46,32,18,0.10)] transition-shadow focus-within:shadow-[0_24px_60px_rgba(46,32,18,0.14)] sm:px-5">
         <div className="flex min-h-[114px] flex-col justify-between gap-4 rounded-[26px]">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-3">
             <textarea
-              className="min-h-[58px] flex-1 resize-none border-0 bg-transparent pt-1 text-[1.02rem] text-[#413a33] outline-none placeholder:text-[#aaa096]"
+              className="min-h-[58px] flex-1 resize-none border-0 bg-transparent pt-1 text-[1.02rem] leading-7 text-[#2c2520] outline-none placeholder:text-[#b0a89e]"
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Click here and type anything - or just say hi! 🙋"
+              placeholder={t("Click here and type anything - or just say hi! 🙋")}
               value={prompt}
             />
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#17b26a] text-xs font-bold text-white">
-                ★
-              </span>
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#4b7dff] text-[10px] font-bold text-white">
-                ▶
-              </span>
+            <div className="flex shrink-0 items-center gap-2 pt-0.5">
+              {(prompt.trim() || attachments.length > 0) && (
+                <button
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[#e8dfd4] bg-[#faf7f2] text-[#9e9b93] transition hover:border-[#f0b8a0] hover:bg-[#fff4ee] hover:text-[#c8622a]"
+                  onClick={handleClearInput}
+                  title="Clear input"
+                  type="button"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                    <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+                  </svg>
+                </button>
+              )}
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#17b26a] text-xs font-bold text-white shadow-sm">★</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#4b7dff] text-[10px] font-bold text-white shadow-sm">▶</span>
             </div>
           </div>
 
@@ -692,7 +707,7 @@ export function LandingChatSection(): JSX.Element {
             </div>
 
             <button
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#d9773a] px-6 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(217,119,58,0.28)]"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#d9773a] to-[#c8622a] px-6 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(200,98,42,0.32)] transition hover:shadow-[0_12px_28px_rgba(200,98,42,0.40)] disabled:opacity-50 disabled:shadow-none"
               disabled={!prompt.trim() && attachments.length === 0}
               onClick={handleSend}
               type="button"
@@ -701,7 +716,7 @@ export function LandingChatSection(): JSX.Element {
                 <circle cx="11" cy="11" r="5" strokeWidth="1.8" />
                 <path d="m20 20-4.2-4.2" strokeLinecap="round" strokeWidth="1.8" />
               </svg>
-              Let&apos;s go
+              {t("Let's go")}
             </button>
           </div>
 
