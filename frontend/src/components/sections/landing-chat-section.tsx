@@ -265,6 +265,7 @@ export function LandingChatSection(): JSX.Element {
   const screenRecorderRef = useRef<MediaRecorder | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const screenChunksRef = useRef<Blob[]>([]);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const webcamStreamRef = useRef<MediaStream | null>(null);
   const webcamCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -759,6 +760,12 @@ export function LandingChatSection(): JSX.Element {
     router.push(destination);
   };
 
+  const handleSuggestionSelect = (value: string): void => {
+    setPrompt(value);
+    setStatus("Suggestion added to the prompt box");
+    textareaRef.current?.focus();
+  };
+
   useEffect(() => {
     if (!videoPreviewRef.current) {
       return;
@@ -800,6 +807,7 @@ export function LandingChatSection(): JSX.Element {
         <div className="flex min-h-[114px] flex-col justify-between gap-4 rounded-[26px]">
           <div className="flex items-start justify-between gap-3">
             <textarea
+              ref={textareaRef}
               className="min-h-[58px] flex-1 resize-none border-0 bg-transparent pt-1 text-[1.02rem] leading-7 text-[#2c2520] outline-none placeholder:text-[#b0a89e]"
               onChange={(event) => setPrompt(event.target.value)}
               placeholder={t("Click here and type anything - or just say hi! 🙋")}
@@ -1027,6 +1035,62 @@ export function LandingChatSection(): JSX.Element {
       </div>
 
       {/* ── Inline Onboarding Panel ────────────────────────────────────────── */}
+      <div className="mt-4 overflow-hidden rounded-[26px] border border-[#ddd4ca] bg-white shadow-[0_16px_40px_rgba(46,32,18,0.08)]">
+        <div className="flex flex-wrap items-center gap-1 border-b border-[#ece3d7] px-4 py-3 sm:px-5">
+          {tabs.map((tab) => {
+            const isActive = tab.name === activeTab;
+            return (
+              <button
+                key={tab.name}
+                className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition ${
+                  isActive
+                    ? "border-[#d9d1c7] bg-[#faf7f2] text-[#2f2a24]"
+                    : "border-transparent text-[#6f675f] hover:bg-[#faf7f2] hover:text-[#2f2a24]"
+                }`}
+                onClick={() => setActiveTab(tab.name)}
+                type="button"
+              >
+                <TabIcon tab={tab.name} />
+                {tab.name}
+              </button>
+            );
+          })}
+          {onboardingPhase === 0 ? (
+            <button
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[#c8622a]/20 bg-[#fff8f3] px-3 py-1.5 text-xs font-medium text-[#c8622a] transition hover:border-[#c8622a]/40 hover:bg-[#fff4ee]"
+              onClick={() => {
+                setOnboardingPhase(1);
+                setOnboardingAnswers([]);
+                setOnboardingStep(0);
+              }}
+              type="button"
+            >
+              Guide me
+            </button>
+          ) : null}
+        </div>
+
+        <div className="px-4 py-3 sm:px-5 sm:py-4">
+          <div className="space-y-1.5">
+            {activeItems.map((item) => (
+              <button
+                key={item.label}
+                className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-[#faf7f2]"
+                onClick={() => handleSuggestionSelect(item.label)}
+                type="button"
+              >
+                {iconWrapper(item.icon)}
+                <span className="text-base text-[#5a534b]">{t(item.label)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-[#ece3d7] bg-[#fcfaf7] px-4 py-3 text-xs text-[#9a9186] sm:px-5">
+          Click any suggestion to fill the search box, then press <span className="font-semibold text-[#7f7468]">Let&apos;s go</span>
+        </div>
+      </div>
+
       {onboardingPhase >= 1 && (
         <div className="mt-5 overflow-hidden rounded-[26px] border border-[#ddd4ca] bg-white shadow-[0_16px_40px_rgba(46,32,18,0.08)]">
 
@@ -1188,7 +1252,7 @@ export function LandingChatSection(): JSX.Element {
       )}
 
       {/* ── Suggestion Tabs (shown when onboarding is dismissed) ─────────── */}
-      {onboardingPhase === 0 && (
+      {false && (
         <div className="mt-5 overflow-hidden rounded-[26px] border border-[#ddd4ca] bg-white shadow-[0_16px_40px_rgba(46,32,18,0.08)]">
           <div className="flex flex-wrap items-center gap-2 border-b border-[#ece3d7] px-4 py-3 sm:px-5">
             {/* Re-open onboarding */}
